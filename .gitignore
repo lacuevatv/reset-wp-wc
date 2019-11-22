@@ -1,6 +1,5 @@
 .DS_Store
 *.log
-wp-config.php
 contenido
 core/advanced-cache.php
 core/backup-db/
