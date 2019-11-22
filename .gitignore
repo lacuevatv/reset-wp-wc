@@ -11,7 +11,7 @@ core/uploads/
 core/mu-plugins/
 core/wp-cache-config.php
 core/plugins/hello.php
-
+db/
 /wp/license.txt
 /wp/readme.html
 sitemap.xml
