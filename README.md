@@ -2,7 +2,7 @@
 Catálogo online. Woocommerce catalog
 
 ## Themes
-Divi
+Divi 4.0
 
 ## Pluggins
 * https://woocommerce.com/products/catalog-visibility-options/
