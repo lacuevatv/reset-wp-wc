@@ -10,3 +10,4 @@ Divi 4.0
 * https redirection
 * w3-total cache
 * yoast seo
+* mailchimp
