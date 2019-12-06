@@ -9,5 +9,171 @@
 */
  
 @import url("../Divi/style.css");
-@charset "utf-8";
 
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+}
+
+#main-footer .footer-widget h4 {
+	text-align: center;
+	position: relative;
+	margin-bottom: 20px;
+	padding-bottom: 20px;
+}
+
+#main-footer .footer-widget h4:after {
+	content: '';
+	width: 40px;
+	height: 2px;
+	background-color: #e3cd8f;
+	position: absolute;
+	bottom: 0;
+	left: 50%;
+	-webkit-transform: translateX(-50%);
+	-moz-transform: translateX(-50%);
+	-ms-transform: translateX(-50%);
+	-o-transform: translateX(-50%);
+	transform: translateX(-50%);
+}
+
+#seguinos-footer {
+	width: 100px;
+	display: flex;
+    display: -o-flex;
+    display: -ms-flex;
+    display: -moz-flex;
+    display: -webkit-flex;
+    -webkit-align-items: center;
+    -moz-align-items: center;
+    -ms-align-items: center;
+    -o-align-items: center;
+    align-items: center;
+    -webkit-justify-content: space-between;
+    -moz-justify-content: space-between;
+    -ms-justify-content: space-between;
+    -o-justify-content: space-between;
+    justify-content: space-between;
+}
+
+#seguinos-footer a:hover {
+	opacity: 0.6;
+}
+
+#contactanos-footer {
+	
+}
+
+#contactanos-footer li:before {
+	content: none!important;
+}
+
+#contactanos-footer li a {
+	display: flex;
+    display: -o-flex;
+    display: -ms-flex;
+    display: -moz-flex;
+    display: -webkit-flex;
+    -webkit-align-items: center;
+    -moz-align-items: center;
+    -ms-align-items: center;
+    -o-align-items: center;
+    align-items: center;
+}
+
+#contactanos-footer li a img {
+	width: 60%;
+}
+
+#contactanos-footer li a:hover {
+	opacity: 0.6;
+}
+
+.mc_merge_var label {
+	text-align: center;
+	opacity: 0.8;
+}
+
+#mc_signup_form .mc_input {
+    padding: .5rem .5rem;
+    border: none;
+    outline: none;
+}
+
+#mc_signup_submit.button {
+	cursor: pointer;
+	position: relative;
+    padding: 0em 1em;
+    border: 2px solid #e3cd8f;
+    -webkit-border-radius: 3px;
+    -moz-border-radius: 3px;
+    border-radius: 3px;
+    background: 0 0;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.7em!important;
+    -webkit-transition: all .2s;
+    -moz-transition: all .2s;
+    transition: all .2s;
+    color: #e3cd8f;
+    margin-top: 0px;
+    width: 100%;
+}
+
+#mc_signup_submit.button:hover {
+	color: #e3cd8f;
+	background-color: #929497;
+    text-decoration: none;
+    background-image: none;
+    border: 2px solid transparent;
+}
+
+#mc_signup_submit.button:after {
+	position: absolute;
+    margin-left: -1em;
+    opacity: 0;
+    font-family: 'ETmodules';
+    font-size: 32px;
+    line-height: 1em;
+    content: "\35";
+    -webkit-transition: all .2s;
+    -moz-transition: all .2s;
+    transition: all .2s;
+}
+
+@media (max-width: 767px) {
+	#top-header #et-info {
+		line-height: 1.8em!important;
+	}
+
+    #custom_html-2 {
+        width: 100%;
+    }
+
+    #seguinos-footer {
+        width: 100%;
+        -webkit-justify-content: center;
+        -moz-justify-content: center;
+        -ms-justify-content: center;
+        -o-justify-content: center;
+        justify-content: center;
+    }
+
+    #seguinos-footer a {
+        margin: 0 10px;
+    }
+    
+    #mailchimpsf_widget-2 {
+        width: 100%;
+    }
+
+    #custom_html-3 {
+        width: 100%;
+    }
+}
