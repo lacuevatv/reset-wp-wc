@@ -7030,12 +7030,44 @@ function et_divi_truncate_post_use_custom_content( $custom, $content, $post ) {
 	$cached = get_post_meta( $post->ID, '_et_pb_truncate_post', true );
 
 	if ( $cached ) {
+        $cached_date = get_post_meta( $post->ID, '_et_pb_truncate_post_date', true );
+		$cached_date = $cached_date ? $cached_date : get_post_field( 'post_modified', $post->ID );
+        $global_modules = array();
+
+        $shortcodes = array();
+        preg_match_all( '/'. get_shortcode_regex() .'/s', $content, $shortcodes );
+
+        if ( is_array( $shortcodes ) && isset( $shortcodes[3] ) ) {
+            foreach ( $shortcodes[3] as $raw_attributes ) {
+                $attributes = shortcode_parse_atts( $raw_attributes );
+                $attributes = is_array( $attributes ) ? $attributes : array();
+                $global_id = (int) et_()->array_get( $attributes, 'global_module', 0 );
+
+                if ( $global_id > 0 ) {
+                    $global_modules[] = $global_id;
+                }
+            }
+        }
+
+        foreach ( $global_modules as $module_post_id ) {
+            // Dates are using the Y-m-d H:i:s format so we can compare them as strings for simplicity.
+            if ( strcmp( get_post_field( 'post_modified', $module_post_id ), $cached_date ) > 0 ) {
+                // A global module used in the post has been updated more recently than
+                // the post's cached excerpt so we need to invalidate the cache.
+                $cached = '';
+                break;
+            }
+        }
+	}
+
+	if ( $cached ) {
 		return $cached;
 	}
 
 	$custom = apply_filters( 'the_content', $content );
 	// Save the result because expensive to compute.
 	update_post_meta( $post->ID, '_et_pb_truncate_post', $custom );
+	update_post_meta( $post->ID, '_et_pb_truncate_post_date', date( 'Y-m-d H:i:s' ) );
 
 	return $custom;
 }
@@ -7093,6 +7125,7 @@ function et_divi_save_post( $post_id ) {
 	// Unset cache
 	update_post_meta( $post_id, '_et_pb_first_image', false );
 	update_post_meta( $post_id, '_et_pb_truncate_post', false );
+	update_post_meta( $post_id, '_et_pb_truncate_post_date', '' );
 }
 endif;
 add_action( 'et_save_post', 'et_divi_save_post', 1 );

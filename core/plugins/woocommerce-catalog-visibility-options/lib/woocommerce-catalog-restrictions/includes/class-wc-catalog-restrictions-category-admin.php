@@ -112,8 +112,8 @@ class WC_Catalog_Restrictions_Category_Admin {
 		$all_roles = $wp_roles->roles;
 
 
-		$restricted           = get_woocommerce_term_meta( $term->term_id, '_wc_restrictions', true );
-		$current_restrictions = get_woocommerce_term_meta( $term->term_id, '_wc_restrictions_allowed', false );
+		$restricted           = get_term_meta( $term->term_id, '_wc_restrictions', true );
+		$current_restrictions = get_term_meta( $term->term_id, '_wc_restrictions_allowed', false );
 
 
 		if ( ! $current_restrictions ) {
@@ -122,19 +122,19 @@ class WC_Catalog_Restrictions_Category_Admin {
 
 		$locations_enabled = $wc_catalog_restrictions->get_setting( '_wc_restrictions_locations_enabled', 'no' ) == 'yes';
 
-		$current_purchase_restrictions_type = get_woocommerce_term_meta( $term->term_id, '_wc_restrictions_purchase', true );
-		$current_price_restrictions_type    = get_woocommerce_term_meta( $term->term_id, '_wc_restrictions_price', true );
+		$current_purchase_restrictions_type = get_term_meta( $term->term_id, '_wc_restrictions_purchase', true );
+		$current_price_restrictions_type    = get_term_meta( $term->term_id, '_wc_restrictions_price', true );
 
-		$current_purchase_restrictions = get_woocommerce_term_meta( $term->term_id, '_wc_restrictions_purchase_roles', true );
+		$current_purchase_restrictions = get_term_meta( $term->term_id, '_wc_restrictions_purchase_roles', true );
 		$current_purchase_restrictions = empty( $current_purchase_restrictions ) ? array() : $current_purchase_restrictions;
 
-		$current_purchase_location_restrictions = get_woocommerce_term_meta( $term->term_id, '_wc_restrictions_purchase_locations', true );
+		$current_purchase_location_restrictions = get_term_meta( $term->term_id, '_wc_restrictions_purchase_locations', true );
 		$current_purchase_location_restrictions = empty($current_purchase_location_restrictions) ? array() : $current_purchase_location_restrictions;
 
-		$current_price_restrictions             = get_woocommerce_term_meta( $term->term_id, '_wc_restrictions_price_roles', true );
+		$current_price_restrictions             = get_term_meta( $term->term_id, '_wc_restrictions_price_roles', true );
 		$current_price_restrictions             = empty( $current_price_restrictions ) ? array() : $current_price_restrictions;
 
-		$current_price_location_restrictions = get_woocommerce_term_meta( $term->term_id, '_wc_restrictions_price_locations', true );
+		$current_price_location_restrictions = get_term_meta( $term->term_id, '_wc_restrictions_price_locations', true );
 		$current_price_location_restrictions = empty($current_price_location_restrictions) ? array() : $current_price_location_restrictions;
 
 		$search_for_location_text = get_option( '_wc_restrictions_locations_type' ) == 'states' ?
@@ -183,8 +183,8 @@ class WC_Catalog_Restrictions_Category_Admin {
                     <div id="wc_catalog_restrictions_location" class="form-field">
 
 						<?php
-						$location_restriction = get_woocommerce_term_meta( $term->term_id, '_wc_restrictions_location', true );
-						$current_locations    = get_woocommerce_term_meta( $term->term_id, '_wc_restrictions_locations', false );
+						$location_restriction = get_term_meta( $term->term_id, '_wc_restrictions_location', true );
+						$current_locations    = get_term_meta( $term->term_id, '_wc_restrictions_locations', false );
 						?>
 
                         <label for="_wc_restrictions_location"><?php _e( 'Choose the type of location rule to use for products in this category.', 'wc_catalog_restrictions' ); ?></label>
@@ -429,8 +429,8 @@ class WC_Catalog_Restrictions_Category_Admin {
 	function cat_column( $columns, $column, $id ) {
 		if ( $column == 'restrictions' ) {
 
-			$restricted           = get_woocommerce_term_meta( $id, '_wc_restrictions', true );
-			$current_restrictions = get_woocommerce_term_meta( $id, '_wc_restrictions_allowed', false );
+			$restricted           = get_term_meta( $id, '_wc_restrictions', true );
+			$current_restrictions = get_term_meta( $id, '_wc_restrictions_allowed', false );
 
 			if ( ! $restricted ) {
 

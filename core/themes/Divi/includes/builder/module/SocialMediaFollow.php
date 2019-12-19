@@ -82,7 +82,7 @@ class ET_Builder_Module_Social_Media_Follow extends ET_Builder_Module {
 			'margin_padding' => array(
 				'css' => array(
 					'main' => 'ul%%order_class%%',
-					'important' => array( 'custom_margin' ), // needed to overwrite last module margin-bottom styling
+					'important' => array( 'custom_margin', 'custom_padding' ), // needed to overwrite last module margin-bottom styling and default ul padding on post
 				),
 			),
 			'text'                  => array(

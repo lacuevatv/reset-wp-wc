@@ -7,7 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Compatibility for the Cartflows plugin.
  *
- * @since ??
+ * @since 4.0.7
  *
  * @link https://wordpress.org/plugins/cartflows/
  */
@@ -15,7 +15,7 @@ class ET_Builder_Plugin_Compat_Cartflows extends ET_Builder_Plugin_Compat_Base {
 	/**
 	 * Constructor.
 	 *
-	 * @since ??
+	 * @since 4.0.7
 	 */
 	public function __construct() {
 		$this->plugin_id = 'cartflows/cartflows.php';
@@ -25,7 +25,7 @@ class ET_Builder_Plugin_Compat_Cartflows extends ET_Builder_Plugin_Compat_Base {
 	/**
 	 * Hook methods to WordPress.
 	 *
-	 * @since ??
+	 * @since 4.0.7
 	 *
 	 * @return void
 	 */
@@ -42,7 +42,7 @@ class ET_Builder_Plugin_Compat_Cartflows extends ET_Builder_Plugin_Compat_Base {
 	 * Disable theme builder for specific Cartflow templates that don't use
 	 * the normal WordPress partials (get_header(), get_footer()).
 	 *
-	 * @since ??
+	 * @since 4.0.7
 	 */
 	public function maybe_disable_theme_builder() {
 		$step_post_type = defined( 'CARTFLOWS_STEP_POST_TYPE' ) ? CARTFLOWS_STEP_POST_TYPE : 'cartflows_step';
@@ -51,7 +51,7 @@ class ET_Builder_Plugin_Compat_Cartflows extends ET_Builder_Plugin_Compat_Base {
 			/**
 			 * Filters page templates that should have the Theme Builder disabled.
 			 *
-			 * @since ??
+			 * @since 4.0.7
 			 *
 			 * @param string[] $templates
 			 */
@@ -67,7 +67,7 @@ class ET_Builder_Plugin_Compat_Cartflows extends ET_Builder_Plugin_Compat_Base {
 	/**
 	 * Disable theme builder for the current request by returning no layouts for it.
 	 *
-	 * @since ??
+	 * @since 4.0.7
 	 *
 	 * @param array $layouts
 	 *

@@ -21,6 +21,10 @@
     border: 0;
 }
 
+#top-header .et-cart-info {
+    display: none!important;
+}
+
 #main-footer .footer-widget h4 {
 	text-align: center;
 	position: relative;

@@ -477,12 +477,12 @@ class WC_Catalog_Restrictions_Filters {
 	}
 
 	private function check_category_purchase_access( $category, $default ) {
-		$pfilter = get_woocommerce_term_meta( $category, '_wc_restrictions_purchase' );
+		$pfilter = get_term_meta( $category, '_wc_restrictions_purchase' );
 		$result  = false;
 		if ( $pfilter == 'public' ) {
 			$result = true;
 		} elseif ( $pfilter == 'restricted' ) {
-			$roles      = get_woocommerce_term_meta( $category, '_wc_restrictions_purchase_roles', true );
+			$roles      = get_term_meta( $category, '_wc_restrictions_purchase_roles', true );
 			$user_roles = $this->get_roles_for_current_user();
 
 			if ( $roles && is_array( $roles ) ) {
@@ -507,7 +507,7 @@ class WC_Catalog_Restrictions_Filters {
 				$t_loc = (array) $t_loc;
 			}
 
-			$locations = get_woocommerce_term_meta( $category, '_wc_restrictions_purchase_locations', true );
+			$locations = get_term_meta( $category, '_wc_restrictions_purchase_locations', true );
 			$result    = count( array_intersect( $t_loc, $locations ) ) > 0;
 
 			if ( $pfilter == 'locations_restricted' ) {
@@ -603,12 +603,12 @@ class WC_Catalog_Restrictions_Filters {
 	}
 
 	private function check_category_price_access( $category, $default ) {
-		$pfilter = get_woocommerce_term_meta( $category, '_wc_restrictions_price' );
+		$pfilter = get_term_meta( $category, '_wc_restrictions_price' );
 		$result  = false;
 		if ( $pfilter == 'public' ) {
 			$result = true;
 		} elseif ( $pfilter == 'restricted' ) {
-			$roles      = get_woocommerce_term_meta( $category, '_wc_restrictions_price_roles', true );
+			$roles      = get_term_meta( $category, '_wc_restrictions_price_roles', true );
 			$user_roles = $this->get_roles_for_current_user();
 
 			if ( $roles && is_array( $roles ) ) {
@@ -633,7 +633,7 @@ class WC_Catalog_Restrictions_Filters {
 				$t_loc = (array) $t_loc;
 			}
 
-			$locations = get_woocommerce_term_meta( $category, '_wc_restrictions_price_locations', true );
+			$locations = get_term_meta( $category, '_wc_restrictions_price_locations', true );
 			$result    = count( array_intersect( $t_loc, $locations ) ) > 0;
 
 			if ( $pfilter == 'locations_restricted' ) {

@@ -482,7 +482,7 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 		$product_categories = array();
 		$product_tags       = array();
 		$use_current_loop   = 'on' === $this->prop( 'use_current_loop', 'off' );
-		$use_current_loop   = $use_current_loop && ( is_search() || et_is_product_taxonomy() );
+		$use_current_loop   = $use_current_loop && ( is_post_type_archive( 'product' ) || is_search() || et_is_product_taxonomy() );
 
 		if ( $use_current_loop ) {
 			$this->props['include_categories'] = 'all';
@@ -559,15 +559,23 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 
 		do_action( 'et_pb_shop_before_print_shop' );
 
+		global $wp_the_query;
+
+		$query_backup = $wp_the_query;
+
 		if ( $use_current_loop ) {
 			add_filter( 'woocommerce_shortcode_products_query', array( $this, 'filter_products_query' ) );
+			add_action( 'pre_get_posts', array( $this, 'apply_woo_widget_filters' ), 0 );
 		}
 
 		$shop = do_shortcode( $shortcode );
 
 		if ( $use_current_loop ) {
+			remove_action( 'pre_get_posts', array( $this, 'apply_woo_widget_filters' ), 0 );
 			remove_filter( 'woocommerce_shortcode_products_query', array( $this, 'filter_products_query' ) );
 		}
+
+		$wp_the_query = $query_backup;
 
 		do_action( 'et_pb_shop_after_print_shop' );
 
@@ -727,7 +735,35 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 			$query_args['s'] = get_search_query();
 		}
 
+		if ( function_exists( 'WC' ) ) {
+			$query_args['meta_query'] = WC()->query->get_meta_query( et_()->array_get( $query_args, 'meta_query', array() ), true );
+			$query_args['tax_query'] = WC()->query->get_tax_query( et_()->array_get( $query_args, 'tax_query', array() ), true );
+
+			// Add fake cache-busting arguments as the filtering is actually done in self::apply_woo_widget_filters().
+			$query_args['et_builder_filter_min_price'] = sanitize_text_field( et_()->array_get( $_GET, 'min_price', '' ) );
+			$query_args['et_builder_filter_max_price'] = sanitize_text_field( et_()->array_get( $_GET, 'max_price', '' ) );
+		}
+
 		return $query_args;
+	}
+
+	/**
+	 * Filter the products shortcode query so Woo widget filters apply.
+	 *
+	 * @since 4.0.8
+	 *
+	 * @param WP_Query $query
+	 */
+	public function apply_woo_widget_filters( $query ) {
+		global $wp_the_query;
+
+		// Trick Woo filters into thinking the products shortcode query is the
+		// main page query as some widget filters have is_main_query checks.
+		$wp_the_query = $query;
+
+		if ( function_exists( 'WC' ) ) {
+			add_filter( 'posts_clauses', array( WC()->query, 'price_filter_post_clauses' ), 10, 2 );
+		}
 	}
 }
 

@@ -1043,6 +1043,26 @@ function et_builder_set_product_content_status( $post_id ) {
 }
 
 /**
+ * Returns alternative hook to make Woo Extra Product Options display fields in FE when TB is
+ * enabled.
+ *
+ * - The Woo Extra Product Options addon does not display the extra fields on the FE.
+ * - This is because the original hook i.e. `woocommerce_before_single_product` in the plugin
+ * is not triggered when TB is enabled.
+ * - Hence return a suitable hook that is fired for all types of Products i.e. Simple, Variable,
+ * etc.
+ *
+ * @see WEPOF_Product_Options_Frontend::define_public_hooks()
+ *
+ * @since 4.0.9
+ *
+ * @return string WooCommerce Hook that is being fired on TB enabled Product pages.
+ */
+function et_builder_trigger_extra_product_options( $hook ) {
+	return 'woocommerce_before_add_to_cart_form';
+}
+
+/**
  * Entry point for the woocommerce-modules.php file.
  *
  * @since 3.29
@@ -1107,6 +1127,12 @@ function et_builder_wc_init() {
 	 * @see https://github.com/elegantthemes/Divi/issues/16420
 	 */
 	add_action( 'et_update_post', 'et_builder_set_product_content_status' );
+
+	/*
+	 * Fix Woo Extra Product Options addon compatibility.
+	 * @see https://github.com/elegantthemes/Divi/issues/17909
+	 */
+	add_filter( 'thwepof_hook_name_before_single_product', 'et_builder_trigger_extra_product_options' );
 }
 
 et_builder_wc_init();

@@ -52,7 +52,7 @@ class ET_Builder_Module_Contact_Form extends ET_Builder_Module_Type_WithSpamProt
 				'captcha' => array(
 					'label'           => esc_html__( 'Captcha', 'et_builder' ),
 					'css'             => array(
-						'main' => "{$this->main_css_element} .et_pb_contact_captcha_question",
+						'main' => "{$this->main_css_element} .et_pb_contact_right p",
 					),
 					'hide_text_align' => true,
 					'line_height'     => array(

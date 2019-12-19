@@ -1,5 +1,35 @@
 <?php
 
+/**
+ * Render a builder layout to string.
+ *
+ * @since 4.0.8
+ *
+ * @param string $content
+ *
+ * @return string
+ */
+function et_builder_render_layout( $content ) {
+	/**
+	 * Filters layout content when it's being rendered.
+	 *
+	 * @since 4.0.8
+	 *
+	 * @param string $content
+	 */
+	return apply_filters( 'et_builder_render_layout', $content );
+}
+
+// Add all core filters that are applied to the_content() without do_blocks().
+add_filter( 'et_builder_render_layout', 'capital_P_dangit', 11 );
+add_filter( 'et_builder_render_layout', 'wptexturize' );
+add_filter( 'et_builder_render_layout', 'convert_smilies', 20 );
+add_filter( 'et_builder_render_layout', 'wpautop' );
+add_filter( 'et_builder_render_layout', 'shortcode_unautop' );
+add_filter( 'et_builder_render_layout', 'prepend_attachment' );
+add_filter( 'et_builder_render_layout', 'wp_make_content_images_responsive' );
+add_filter( 'et_builder_render_layout', 'do_shortcode', 11 ); // AFTER wpautop()
+
 if ( ! function_exists( 'et_builder_add_filters' ) ):
 /**
  * Add common filters depending on what builder is being used.
@@ -324,7 +354,7 @@ function et_builder_get_third_party_unqueryable_post_types() {
  * Get the list of registered Post Types options.
  *
  * @since 3.18
- * @since ?? Added the $require_editor parameter.
+ * @since 4.0.7 Added the $require_editor parameter.
  *
  * @param boolean|callable $usort
  * @param boolean $require_editor
@@ -5326,9 +5356,32 @@ if ( ! function_exists( 'et_builder_show_bfb_welcome_modal' ) ) :
 function et_builder_show_bfb_welcome_modal() {
 	global $pagenow;
 
-	if ( ! et_builder_bfb_enabled() || ! in_array( $pagenow, array( 'post.php', 'post-new.php' ) ) || ! et_pb_is_pagebuilder_used() || ! get_transient( 'et_builder_show_bfb_welcome_modal' ) ) {
+	// Cancel if BFB is not enabled yet
+	if ( ! et_builder_bfb_enabled() ) {
 		return;
 	}
+
+	// Cancel if current request is not editing screen
+	if ( ! in_array( $pagenow, array( 'post.php', 'post-new.php' ) ) ) {
+		return;
+	}
+
+	// Cancel if current edit screen use Gutenberg. `use_block_editor_for_post_type()` was added
+	// after v5.0 so check for its existance first in case current WP version is below 5.0
+	if ( function_exists( 'use_block_editor_for_post_type' ) && use_block_editor_for_post_type( get_post_type() ) ) {
+		return;
+	}
+
+	// Cancel if current edit screen doesn't use builder
+	if ( ! et_pb_is_pagebuilder_used() ) {
+		return;
+	}
+
+	// Cancel if assigned transient doesn't exist
+	if ( ! get_transient( 'et_builder_show_bfb_welcome_modal' ) ) {
+		return;
+	}
+
 	// Clear Builder assets cache to avoid double reloading of BFB after theme update.
 	et_fb_delete_builder_assets();
 
@@ -5590,6 +5643,7 @@ function et_builder_add_builder_content_wrapper( $content ) {
 	return $content;
 }
 add_filter( 'the_content', 'et_builder_add_builder_content_wrapper' );
+add_filter( 'et_builder_render_layout', 'et_builder_add_builder_content_wrapper' );
 
 /**
  * Wraps a copy of a css selector and then returns both selectors.
@@ -5969,70 +6023,57 @@ function et_action_sync_attachment_data_cache( $attachment_id, $metadata = null 
 		return;
 	}
 
-	$cache_keys = array(
-		'image_srcset_sizes',
-		'image_responsive_metadata',
-		'attachment_id_by_url',
-		'attachment_size_by_url',
+	$url_full = wp_get_attachment_url( $attachment_id );
+
+	if ( ! $url_full ) {
+		return;
+	}
+
+	// Normalize image URL to remove the HTTP/S protocol.
+	$normalized_url_full = et_attachment_normalize_url( $url_full );
+
+	if ( ! $normalized_url_full ) {
+		return;
+	}
+
+	$normalized_urls = array(
+		$normalized_url_full => $normalized_url_full,
 	);
-
-	$cache_saves = array();
-	$cache_datas = array();
-
-	foreach ( $cache_keys as $cache_key ) {
-		$cache = ET_Core_Cache_File::get( $cache_key );
-
-		if ( $cache ) {
-			$cache_datas[ $cache_key ] = $cache;
-		}
-	}
-
-	if ( ! $cache_datas ) {
-		return;
-	}
-
-	$attachment_url = wp_get_attachment_url( $attachment_id );
-
-	if ( ! $attachment_url ) {
-		return;
-	}
-
-	foreach ( $cache_keys as $cache_key ) {
-		if ( isset( $cache_datas[ $cache_key ][ $attachment_url ] ) ) {
-			unset( $cache_datas[ $cache_key ][ $attachment_url ] );
-
-			if ( ! isset( $cache_saves[ $cache_key ] ) ) {
-				$cache_saves[ $cache_key ] = $cache_key;
-			}
-		}
-	}
 
 	if ( is_null( $metadata ) ) {
 		$metadata = wp_get_attachment_metadata( $attachment_id );
 	}
 
-	if ( isset( $metadata['sizes'] ) ) {
-		$attachment_url_basename = basename( $attachment_url );
+	if ( ! empty( $metadata ) ) {
+		foreach( $metadata['sizes'] as $image_size ) {
+			$normalized_url = str_replace( basename( $normalized_url_full ), $image_size['file'], $normalized_url_full );
 
-		foreach ( $metadata['sizes'] as $image_size ) {
-			$image_size_url = str_replace( $attachment_url_basename, $image_size['file'], $attachment_url );
-
-			foreach ( $cache_keys as $cache_key ) {
-				if ( isset( $cache_datas[ $cache_key ][ $image_size_url ] ) ) {
-					unset( $cache_datas[ $cache_key ][ $image_size_url ] );
-
-					if ( ! isset( $cache_saves[ $cache_key ] ) ) {
-						$cache_saves[ $cache_key ] = $cache_key;
-					}
-				}
+			if ( ! isset( $normalized_urls[ $normalized_url ] ) ) {
+				$normalized_urls[ $normalized_url ] = $normalized_url;
 			}
 		}
 	}
 
-	if ( $cache_saves ) {
-		foreach ( $cache_saves as $cache_save_key ) {
-			ET_Core_Cache_File::set( $cache_save_key, $cache_datas[ $cache_save_key ] );
+	$cache_keys = array(
+		'attachment_id_by_url',
+		'attachment_size_by_url',
+		'image_responsive_metadata',
+		'image_srcset_sizes',
+	);
+
+	foreach ( $cache_keys as $cache_key ) {
+		$cache = ET_Core_Cache_File::get( $cache_key );
+
+		// Skip if the cache data is empty.
+		if ( ! $cache ) {
+			continue;
 		}
+
+		foreach ( $normalized_urls as $normalized_url ) {
+			unset( $cache[ $normalized_url ] );
+		}
+
+		ET_Core_Cache_File::set( $cache_key, $cache );
 	}
 }
 endif;

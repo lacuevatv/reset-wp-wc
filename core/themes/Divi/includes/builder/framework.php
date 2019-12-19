@@ -874,6 +874,7 @@ function et_pb_content_main_query( $content ) {
 	return $content;
 }
 add_filter( 'the_content', 'et_pb_content_main_query', 1500 );
+add_filter( 'et_builder_render_layout', 'et_pb_content_main_query', 1500 );
 
 /**
  * Added special class name for comment items that are placed outside builder
@@ -949,7 +950,7 @@ function et_builder_enqueue_assets_main() {
 	wp_enqueue_style( 'et-core-admin', ET_CORE_URL . 'admin/css/core.css', array(), ET_CORE_VERSION );
 	wp_enqueue_style( 'et-core-portability', ET_CORE_URL . 'admin/css/portability.css', array(), ET_CORE_VERSION );
 
-	wp_register_style( 'et_pb_admin_date_css', "{$root}/styles/jquery-ui-1.10.4.custom.css", array(), $ver );
+	wp_register_style( 'et_pb_admin_date_css', "{$root}/styles/jquery-ui-1.12.1.custom.css", array(), $ver );
 	wp_register_style( 'et-fb-top-window', "{$assets}/css/fb-top-window.css", array(), $ver );
 
 	$conditional_deps = array();

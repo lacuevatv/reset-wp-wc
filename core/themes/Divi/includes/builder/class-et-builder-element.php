@@ -298,6 +298,7 @@ class ET_Builder_Element {
 			ET_Builder_Module_Settings_Migration::init();
 
 			add_filter( 'the_content', array( get_class( $this ), 'reset_element_indexes' ), 9999 );
+			add_filter( 'et_builder_render_layout', array( get_class( $this ), 'reset_element_indexes' ), 9999 );
 		}
 
 		if ( self::$loading_backbone_templates || et_admin_backbone_templates_being_loaded() ) {
@@ -954,11 +955,13 @@ class ET_Builder_Element {
 	 * {@see 'wp_footer' (19) Must run before the style manager's footer callback}
 	 */
 	public static function set_advanced_styles() {
-		$styles = self::get_style() . self::get_style( true );
+		$styles = '';
 
 		if ( et_core_is_builder_used_on_current_request() ) {
 			$styles .= et_pb_get_page_custom_css();
 		}
+
+		$styles .= self::get_style() . self::get_style( true );
 
 		if ( ! $styles ) {
 			return;
@@ -1750,7 +1753,11 @@ class ET_Builder_Element {
 			foreach ( array( 'hover', 'tablet', 'phone' ) as $mode ) {
 				$name_by_mode = ET_Builder_Module_Helper_MultiViewOptions::get_name_by_mode( $base_name, $mode );
 
-				if ( ! isset( $values[ $name_by_mode ] ) && isset( $resolved[ $name_by_mode ] ) && '' === $resolved[ $name_by_mode ] ) {
+				if ( ! isset( $values[ $name_by_mode ] ) && ! isset( $resolved[ $name_by_mode ] ) ) {
+					// Set value inheritance flag for hover mode.
+					$this->mv_inherited_props[ $name_by_mode ] = $name_by_mode;
+				} else if( ! isset( $values[ $name_by_mode ] ) && isset( $resolved[ $name_by_mode ] ) && '' === $resolved[ $name_by_mode ] ) {
+					// Set value inheritance flag for tablet & phone mode.
 					$this->mv_inherited_props[ $name_by_mode ] = $name_by_mode;
 				}
 			}
@@ -2051,14 +2058,15 @@ class ET_Builder_Element {
 					$global_content = et_pb_get_global_module_content( $global_module_data, $render_slug, $load_inner_row );
 				}
 
-				if ( in_array($render_slug, array('et_pb_code', 'et_pb_fullwidth_code')) ) {
-					$global_content = _et_pb_code_module_prep_content($global_content);
-				}
-
 				// cleanup the shortcode string to avoid the attributes messing with content
 				$global_content_processed = false !== $global_content ? str_replace( $global_content, '', $global_module_data ) : $global_module_data;
 				$global_atts = shortcode_parse_atts( et_pb_remove_shortcode_content( $global_content_processed, $this->slug ) );
 				$global_atts = $this->_encode_legacy_dynamic_content( $global_atts, $enabled_dynamic_attributes );
+
+				// Additional content processing required for Code Modules.
+				if ( in_array( $render_slug, array( 'et_pb_code', 'et_pb_fullwidth_code' ) ) ) {
+					$global_content_processed = _et_pb_code_module_prep_content( $global_content_processed );
+				}
 
 				// reset module addresses because global items will be processed once again and address will be incremented wrongly
 				if ( false !== strpos( $render_slug, '_section' ) ) {
@@ -12742,6 +12750,15 @@ class ET_Builder_Element {
 
 				$main_element_styles_padding_important = 'no' === $global_use_icon_value && 'off' !== $button_use_icon;
 
+				// Check existing button custom padding on desktop before generating padding.
+				// If current button has custom padding, we should not set default padding,
+				// just leave it empty.
+				$button_padding_name  = 'et_pb_button' !== $function_name ? "{$option_name}_custom_padding" : 'custom_padding';
+				$button_padding_value = et_pb_responsive_options()->get_any_value( $this->props, $button_padding_name );
+				$button_padding_value = ! empty( $button_padding_value ) ? explode( '|', $button_padding_value ) : array();
+				$button_padding_right = self::$_->array_get( $button_padding_value, 1, '' );
+				$button_padding_left  = self::$_->array_get( $button_padding_value, 3, '' );
+
 				$main_element_styles = sprintf(
 					'%1$s
 					%2$s
@@ -12750,18 +12767,24 @@ class ET_Builder_Element {
 					%5$s
 					%6$s
 					%7$s
-					%8$s',
+					%8$s
+					%9$s',
 					'' !== $button_text_color ? sprintf( 'color:%1$s !important;', $button_text_color ) : '',
 					'' !== $button_border_width && 'px' !== $button_border_width ? sprintf( 'border-width:%1$s !important;', et_builder_process_range_value( $button_border_width ) ) : '',
 					'' !== $button_border_color ? sprintf( 'border-color:%1$s;', $button_border_color ) : '',
 					'' !== $button_border_radius_processed ? sprintf( 'border-radius:%1$s;', $button_border_radius_processed ) : '',
-					'' !== $button_letter_spacing && 'px' !== $button_letter_spacing ? sprintf( 'letter-spacing:%1$s;', et_builder_process_range_value( $button_letter_spacing ) ) : '',
+					'' !== $button_letter_spacing && 'px' !== $button_letter_spacing ? sprintf( 'letter-spacing:%1$s;', et_builder_process_range_value( $button_letter_spacing ) ) : '',  // #5
 					! $is_default_button_text_size  ? sprintf( 'font-size:%1$s;', $button_text_size_processed ) : '',
 					'' !== $button_font ? et_builder_set_element_font( $button_font, true ) : '',
-					'off' === $button_on_hover ?
-						sprintf( 'padding-left:%1$s%3$s; padding-right: %2$s%3$s;',
-							'left' === $button_icon_placement ? '2em' : '0.7em',
+					'off' === $button_on_hover && empty( $button_padding_right ) ?
+						sprintf( 'padding-right: %1$s%2$s;',
 							'left' === $button_icon_placement ? '0.7em' : '2em',
+							$main_element_styles_padding_important ? ' !important' : ''
+						)
+						: '',
+					'off' === $button_on_hover && empty( $button_padding_left ) ?
+						sprintf( 'padding-left:%1$s%2$s;',
+							'left' === $button_icon_placement ? '2em' : '0.7em',
 							$main_element_styles_padding_important ? ' !important' : ''
 						)
 						: ''
@@ -12772,13 +12795,30 @@ class ET_Builder_Element {
 					'declaration' => rtrim( $main_element_styles ),
 				) );
 
+				// Check existing button custom padding on hover before generating padding on
+				// hover. If current button has custom padding on hover, we should not set
+				// default padding on hover, just leave it empty.
+				$button_padding_hover_value = et_pb_hover_options()->get_value( $button_padding_name, $this->props, '' );
+				$button_padding_hover_value = ! empty( $button_padding_hover_value ) ? explode( '|', $button_padding_hover_value ) : array();
+				$button_padding_hover_right = self::$_->array_get( $button_padding_hover_value, 1, '' );
+				$button_padding_hover_left  = self::$_->array_get( $button_padding_hover_value, 3, '' );
+
+				$on_hover_padding_right = ! empty( $button_padding_hover_right ) ? '' : sprintf( 'padding-right: %1$s%2$s;',
+					'left' === $button_icon_placement ? '0.7em' : '2em',
+					$main_element_styles_padding_important ? ' !important' : ''
+				);
+
+				$on_hover_padding_left = ! empty( $button_padding_hover_left ) ? '' : sprintf( 'padding-left: %1$s%2$s;',
+					'left' === $button_icon_placement ? '2em' : '0.7em',
+					$main_element_styles_padding_important ? ' !important' : ''
+				);
+
 				// if button has default icon position or disabled globally and not enabled in module then no padding css should be generated.
 				$on_hover_padding = $is_default_button_icon_placement || ('default' === $button_use_icon && 'no' === $global_use_icon_value)
 					? ''
-					: sprintf( 'padding-left:%1$s%3$s; padding-right: %2$s%3$s;',
-						'left' === $button_icon_placement ? '2em' : '0.7em',
-						'left' === $button_icon_placement ? '0.7em' : '2em',
-						$main_element_styles_padding_important ? ' !important' : ''
+					: sprintf( '%1$s%2$s',
+						$on_hover_padding_right,
+						$on_hover_padding_left
 					);
 
 				// Avoid adding useless style when value equals its default
@@ -13000,39 +13040,64 @@ class ET_Builder_Element {
 						$current_border_radius .= '' !== $current_border_radius ? ' !important' : '';
 					}
 
-					// Responsive Padding Left & Right.
-					$responsive_padding_left  = '';
-					$responsive_padding_right = '';
-					if ( 'off' === $current_on_hover ) {
-						$responsive_padding_left  = 'left' === $current_icon_placement ? '2em' : '0.7em';
-						$responsive_padding_right = 'left' === $current_icon_placement ? '0.7em' : '2em';
+					// Get right and left custom padding value. The reset padding should not
+					// be applied if current button has custom padding defined.
+					$current_padding_name          = et_pb_responsive_options()->get_field_name( $button_padding_name, $device );
+					$current_padding_value         = et_pb_responsive_options()->get_any_value( $this->props, $current_padding_name, '', true );
+					$current_padding_value         = ! empty( $current_padding_value ) ? explode( '|', $current_padding_value ) : array();
+					$current_padding_default       = et_pb_responsive_options()->get_default_value( $this->props, $current_padding_name );
+					$current_padding_default       = ! empty( $current_padding_default ) ? explode( '|', $current_padding_default ) : array();
+					$current_padding_right         = self::$_->array_get( $current_padding_value, 1, '' );
+					$current_padding_left          = self::$_->array_get( $current_padding_value, 3, '' );
+					$current_padding_default_right = self::$_->array_get( $current_padding_default, 1, '' );
+					$current_padding_default_left  = self::$_->array_get( $current_padding_default, 3, '' );
+
+					// Reset responsive padding right. Only reset padding if current device
+					// doesn't have value and the previous device has value to be reset.
+					$responsive_padding_right       = '';
+					$responsive_hover_padding_right = '';
+					if ( empty( $current_padding_right ) && ! empty( $current_padding_default_right ) ) {
+						// Default padding for normal and hover.
+						$responsive_padding_right = '1em';
+
+						// If padding hover right deosn't exist, add default padding for hover.
+						if ( empty( $button_padding_hover_right ) ) {
+							$responsive_hover_padding_right = 'left' === $current_icon_placement ? '2em' : '0.7em';
+						}
+
+						// If icon on hover is disabled, set padding value like hover state
+						// and remove padding for hover because it's same.
+						if ( 'off' === $current_on_hover ) {
+							$responsive_padding_right       = 'left' === $current_icon_placement ? '2em' : '0.7em';
+							$responsive_hover_padding_right = '';
+						}
 					}
 
-					// Responsive Hover Padding Left & Right.
-					$responsive_hover_padding_left  = 'left' === $current_icon_placement ? '2em' : '0.7em';
-					$responsive_hover_padding_right = 'left' === $current_icon_placement ? '0.7em' : '2em';
-					if ( '' === $current_icon_placement || ( 'default' === $button_use_icon && 'no' === $global_use_icon_value ) ) {
+					// Reset responsive padding left. Only reset padding if current device
+					// doesn't have value and the previous device has value to be reset.
+					$responsive_padding_left       = '';
+					$responsive_hover_padding_left = '';
+					if ( empty( $current_padding_left ) && ! empty( $current_padding_default_left ) ) {
+						// Default padding for normal and hover.
+						$responsive_padding_left = '1em';
+
+						// If padding hover left deosn't exist, add default padding for hover.
+						if ( empty( $button_padding_hover_left ) ) {
+							$responsive_hover_padding_left = 'left' === $current_icon_placement ? '2em' : '0.7em';
+						}
+
+						// If icon on hover is disabled, set padding value like hover state
+						// and remove padding for hover because it's same.
+						if ( 'off' === $current_on_hover ) {
+							$responsive_padding_left       = 'left' === $current_icon_placement ? '0.7em' : '2em';
+							$responsive_hover_padding_left = '';
+						}
+					}
+
+					// Remove responsive on hover padding left & right.
+					if ( '' === $current_icon_placement || ( 'default' === $button_use_icon && 'no' === $global_use_icon_value ) || $hide_custom_padding_setting ) {
 						$responsive_hover_padding_left  = '';
 						$responsive_hover_padding_right = '';
-					}
-
-					// Reset Padding Left and Right.
-					$reset_padding_left        = '';
-					$reset_padding_right       = '';
-					$reset_padding_left_hover  = '';
-					$reset_padding_right_hover = '';
-					if ( 'off' !== $current_on_hover || 'on' === $current_on_hover ) {
-						// Main padding is 1em, and hover follows the icon position.
-						$reset_padding_left        = '1em';
-						$reset_padding_right       = '1em';
-						$reset_padding_left_hover  = $responsive_padding_left;
-						$reset_padding_right_hover = $responsive_padding_right;
-					} else if ( 'off' === $current_on_hover || 'on' !== $current_on_hover  ) {
-						// Main and hover follow the icon position.
-						$reset_padding_left        = $responsive_padding_left;
-						$reset_padding_right       = $responsive_padding_right;
-						$reset_padding_left_hover  = $responsive_padding_left;
-						$reset_padding_right_hover = $responsive_padding_right;
 					}
 
 					// Responsive button declaration.
@@ -13044,25 +13109,24 @@ class ET_Builder_Element {
 						%5$s
 						%6$s
 						%7$s
-						%8$s',
+						%8$s
+						%9$s',
 						'' !== $current_text_size ? sprintf( 'font-size:%1$s !important;', $current_text_size ) : '',
 						'' !== $current_letter_spacing ? sprintf( 'letter-spacing:%1$s;', $current_letter_spacing ) : '',
 						'' !== $current_text_color ? sprintf( 'color:%1$s !important;', $current_text_color ) : '',
 						'' !== $current_border_width ? sprintf( 'border-width:%1$s !important;', $current_border_width ) : '',
-						'' !== $current_border_color ? sprintf( 'border-color:%1$s;', $current_border_color ) : '',
+						'' !== $current_border_color ? sprintf( 'border-color:%1$s;', $current_border_color ) : '', // #5
 						'' !== $current_border_radius ? sprintf( 'border-radius:%1$s;', $current_border_radius ) : '',
 						'' !== $current_font ? et_builder_set_element_font( $current_font, true ) : '',
-						'' !== $reset_padding_left && '' !== $reset_padding_right ?
-							sprintf( 'padding-left: %1$s%3$s; padding-right: %2$s%3$s;',
-								$reset_padding_left,
-								$reset_padding_right,
+						'' !== $responsive_padding_right ?
+							sprintf( 'padding-right: %1$s%2$s;',
+								$responsive_padding_right,
 								$main_element_styles_padding_important ? ' !important' : ''
 							)
 							: '',
-						'off' === $current_on_hover ?
-							sprintf( 'padding-left: %1$s%3$s; padding-right: %2$s%3$s;',
+						'' !== $responsive_padding_left ?
+							sprintf( 'padding-left: %1$s%2$s;',
 								$responsive_padding_left,
-								$responsive_padding_right,
 								$main_element_styles_padding_important ? ' !important' : ''
 							)
 							: ''
@@ -13077,25 +13141,21 @@ class ET_Builder_Element {
 					}
 
 					// Responsive button hover declaration.
-					$responsive_on_hover_padding = '' === $current_icon_placement || ( 'default' === $button_use_icon && 'no' === $global_use_icon_value )
-						? ''
-						: sprintf( 'padding-left: %1$s%3$s; padding-right: %2$s%3$s;',
-							$responsive_hover_padding_left,
-							$responsive_hover_padding_right,
-							$main_element_styles_padding_important ? ' !important' : ''
-						);
-
 					$responsive_button_hover_declaration = trim( sprintf(
 						'%1$s
 						%2$s',
-						'' !== $reset_padding_left_hover && '' !== $reset_padding_right_hover ?
-							sprintf( 'padding-left: %1$s%3$s; padding-right: %2$s%3$s;',
-								$reset_padding_left_hover,
-								$reset_padding_right_hover,
+						'' !== $responsive_hover_padding_right ?
+						sprintf( 'padding-right: %1$s%2$s;',
+							$responsive_hover_padding_right,
+							$main_element_styles_padding_important ? ' !important' : ''
+						)
+						: '',
+						'' !== $responsive_hover_padding_left ?
+							sprintf( 'padding-left: %1$s%2$s;',
+								$responsive_hover_padding_left,
 								$main_element_styles_padding_important ? ' !important' : ''
 							)
-							: '',
-						'off' === $current_on_hover || $hide_custom_padding_setting ? '' : $responsive_on_hover_padding
+							: ''
 					) );
 
 					// Responsive button hover styles.
@@ -15358,7 +15418,7 @@ class ET_Builder_Element {
 			$wrap_into_media_query = 'general' !== $media_query;
 
 			// sort styles by priority
-			uasort( $styles, array( 'self', 'compare_by_priority' ) );
+			et_()->uasort( $styles, array( 'ET_Builder_Element', 'compare_by_priority' ) );
 
 			// get each rule in a media query
 			foreach ( $styles as $selector => $settings ) {

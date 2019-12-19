@@ -225,7 +225,7 @@ class ET_Builder_Module_Slider_Item extends ET_Builder_Module {
 		$this->custom_css_fields = array(
 			'slide_title' => array(
 				'label'    => esc_html__( 'Slide Title', 'et_builder' ),
-				'selector' => '.et_pb_slide_description h2',
+				'selector' => '.et_pb_slide_description .et_pb_slide_title',
 			),
 			'slide_container' => array(
 				'label'    => esc_html__( 'Slide Description Container', 'et_builder' ),

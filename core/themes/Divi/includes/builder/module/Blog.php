@@ -45,12 +45,12 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 				'header' => array(
 					'label'    => esc_html__( 'Title', 'et_builder' ),
 					'css'      => array(
-						'main' => "{$this->main_css_element} .entry-title",
-						'font' => "{$this->main_css_element} .entry-title a",
-						'color' => "{$this->main_css_element} .entry-title a",
-						'limited_main' => "{$this->main_css_element} .entry-title, {$this->main_css_element} .entry-title a",
-						'hover'        => "{$this->main_css_element} .entry-title:hover, {$this->main_css_element} .entry-title:hover a",
-						'color_hover'  => "{$this->main_css_element} .entry-title:hover a",
+						'main' => "{$this->main_css_element} .entry-title, %%order_class%% .not-found-title",
+						'font' => "{$this->main_css_element} .entry-title a, %%order_class%% .not-found-title",
+						'color' => "{$this->main_css_element} .entry-title a, %%order_class%% .not-found-title",
+						'limited_main' => "{$this->main_css_element} .entry-title, {$this->main_css_element} .entry-title a, %%order_class%% .not-found-title",
+						'hover'        => "{$this->main_css_element} .entry-title:hover, {$this->main_css_element} .entry-title:hover a, %%order_class%% .not-found-title:hover",
+						'color_hover'  => "{$this->main_css_element} .entry-title:hover a, %%order_class%% .not-found-title:hover",
 						'important' => 'all',
 					),
 					'header_level' => array(
@@ -1067,7 +1067,7 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 		$wp_query = $wp_query_page; // phpcs:ignore WordPress.Variables.GlobalVariables.OverrideProhibited
 
 		if ( ! $posts = ob_get_clean() ) {
-			$posts = self::get_no_results_template();
+			$posts = self::get_no_results_template( et_core_esc_previously( $processed_header_level ) );
 		}
 
 		self::$rendering = false;
@@ -1544,11 +1544,7 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 			   $container_is_closed = true;
 		   }
 		} elseif ( $show_no_results_template ) {
-			if ( et_is_builder_plugin_active() ) {
-				include( ET_BUILDER_PLUGIN_DIR . 'includes/no-results.php' );
-			} else {
-				get_template_part( 'includes/no-results', 'index' );
-			}
+			echo self::get_no_results_template( et_core_intentionally_unescaped( $processed_header_level, 'fixed_string' ) );
 		}
 
 		wp_reset_query();
@@ -1702,6 +1698,7 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 			$this->advanced_fields['box_shadow']['default'] = array(
 				'css' => array(
 					'main'    => '%%order_class%% article.et_pb_post',
+					'hover'   => '%%order_class%% article.et_pb_post:hover',
 					'overlay' => 'inset',
 				),
 			);

@@ -71,12 +71,30 @@ class ET_Builder_Module_Comments extends ET_Builder_Module {
 			),
 			'fonts'                 => array(
 				'header' => array(
-					'label'          => esc_html__( 'Title', 'et_builder' ),
+					'label'          => esc_html__( 'Comment Count', 'et_builder' ),
 					'css'            => array(
 						'main' => "{$this->main_css_element} h1.page_title, {$this->main_css_element} h2.page_title, {$this->main_css_element} h3.page_title, {$this->main_css_element} h4.page_title, {$this->main_css_element} h5.page_title, {$this->main_css_element} h6.page_title",
 					),
 					'header_level' => array(
 						'default' => 'h1',
+					),
+				),
+				'title'  => array(
+					'label'          => esc_html__( 'Form Title', 'et_builder' ),
+					'css'            => array(
+						'main' => "{$this->main_css_element} .comment-reply-title",
+					),
+					'line_height'    => array(
+						'default' => '1em',
+					),
+					'font_size'      => array(
+						'default' => '22px',
+					),
+					'letter_spacing' => array(
+						'default' => '0px',
+					),
+					'header_level' => array(
+						'default' => 'h3',
 					),
 				),
 				'meta' => array(
@@ -329,16 +347,22 @@ class ET_Builder_Module_Comments extends ET_Builder_Module {
 	/**
 	 * Get comments markup for comments module
 	 *
+	 * @since 4.0.9 Add custom form title heading level.
+	 *
+	 * @param {string} $header_level
+	 * @param {string} $form_title_level
+	 *
 	 * @return string of comment section markup
 	 */
-	static function get_comments( $header_level ) {
-		global $et_pb_comments_print, $et_comments_header_level;
+	static function get_comments( $header_level, $form_title_level ) {
+		global $et_pb_comments_print, $et_comments_header_level, $et_comments_form_title_level;
 
 		// Globally flag that comment module is being printed
 		$et_pb_comments_print = true;
 
 		// set custom header level for comments form
-		$et_comments_header_level = $header_level;
+		$et_comments_header_level     = $header_level;
+		$et_comments_form_title_level = $form_title_level;
 
 		// remove filters to make sure comments module rendered correctly if the below filters were applied earlier.
 		remove_filter( 'get_comments_number', '__return_zero' );
@@ -386,11 +410,15 @@ class ET_Builder_Module_Comments extends ET_Builder_Module {
 	 * module can modify these
 	 *
 	 * @since 3.29
+	 * @since 4.0.9 Add form title heading level.
 	 */
 	function get_comments_content() {
-		$header_level = $this->props['header_level'];
+		$header_level               = et_()->array_get( $this->props, 'header_level' );
+		$form_title_level           = et_()->array_get( $this->props, 'title_level' );
+		$header_level_processed     = et_pb_process_header_level( $header_level, 'h1' );
+		$form_title_level_processed = et_pb_process_header_level( $form_title_level, 'h3' );
 
-		return self::get_comments( et_pb_process_header_level( $header_level, 'h1' ) );
+		return self::get_comments( $header_level_processed, $form_title_level_processed );
 	}
 
 	/**

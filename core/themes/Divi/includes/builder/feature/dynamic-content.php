@@ -953,7 +953,7 @@ function et_builder_filter_resolve_default_dynamic_content( $content, $name, $se
 				break;
 			}
 
-			$content = esc_html( $author->description );
+			$content = et_core_intentionally_unescaped( $author->description, 'cap_based_sanitized' );
 			break;
 
 		case 'site_title':
@@ -1247,20 +1247,18 @@ function et_builder_filter_resolve_default_dynamic_content( $content, $name, $se
 			break;
 	}
 
-	if ( $post_id > 0 ) {
-		// Handle in post type URL options.
-		$post_types = et_builder_get_public_post_types();
-		foreach ( $post_types as $public_post_type ) {
-			$key = 'post_link_url_' . $public_post_type->name;
+	// Handle in post type URL options.
+	$post_types = et_builder_get_public_post_types();
+	foreach ( $post_types as $public_post_type ) {
+		$key = 'post_link_url_' . $public_post_type->name;
 
-			if ( $key !== $name ) {
-				continue;
-			}
-
-			$selected_post_id  = $_->array_get( $settings, 'post_id', $def( $post_id, $name, 'post_id' ) );
-			$content           = esc_url( get_permalink( $selected_post_id ) );
-			break;
+		if ( $key !== $name ) {
+			continue;
 		}
+
+		$selected_post_id  = $_->array_get( $settings, 'post_id', $def( $post_id, $name, 'post_id' ) );
+		$content           = esc_url( get_permalink( $selected_post_id ) );
+		break;
 	}
 
 	// Wrap non plain text woo data to add custom selector for styling inheritance.
@@ -1449,6 +1447,19 @@ function et_builder_serialize_dynamic_content( $dynamic, $content, $settings ) {
 	$result = 0 === $options ? str_replace( '\/', '/', $result ) : $result;
 
 	return '@ET-DC@' . base64_encode( $result ) . '@';
+}
+
+/**
+ * Strip dynamic content.
+ *
+ * @since 4.0.9
+ *
+ * @param string $content
+ *
+ * @return string
+ */
+function et_builder_strip_dynamic_content( $content ) {
+	return preg_replace( '/@ET-DC@(.*?)@/', '', $content );
 }
 
 /**

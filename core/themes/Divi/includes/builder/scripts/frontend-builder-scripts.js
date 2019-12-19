@@ -420,10 +420,10 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 				}
 
 				if ( window.et_load_event_fired ) {
-					et_fix_slider_height( $et_slider );
+					'function' === typeof et_fix_slider_height && et_fix_slider_height( $et_slider );
 				} else {
 					$et_window.on( 'load', function() {
-						et_fix_slider_height( $et_slider );
+						'function' === typeof et_fix_slider_height && et_fix_slider_height( $et_slider );
 					} );
 				}
 
@@ -5017,6 +5017,9 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 					'.et_pb_menu__search-button',
 					'.et_pb_menu__close-search-button',
 					'.et_pb_menu__search-container *',
+
+					// Fullwidth Header
+					'.et_pb_fullwidth_header_scroll *',
 				];
 
 				for (var i = 0; i < click_exceptions.length; i++) {
@@ -6103,11 +6106,14 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 			}
 
 			// Wait the page fully loaded to make sure all the css applied before calculating sizes
+			var previousCallback = document.onreadystatechange || function () {};
 			document.onreadystatechange = function () {
-				if ( 'complete' === document.readyState ) {
+				if ('complete' === document.readyState) {
 					window.et_fix_pricing_currency_position();
 				}
-			}
+
+				previousCallback();
+			};
 
 			$('.et_pb_contact_form_container, .et_pb_newsletter_custom_fields').each( function() {
 				var $form = $(this);
@@ -6590,13 +6596,13 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 
 		// Adjust spacing based on layout and the logo used.
 		$search.css('padding-top', 0);
-		if ($module.hasClass('et_pb_menu--style-left_aligned')) {
+		if ($module.hasClass('et_pb_menu--style-left_aligned') || $module.hasClass('et_pb_fullwidth_menu--style-left_aligned')) {
 			$search.css('padding-left', $logo.width());
 		} else {
 			var logoHeight = $logo.height();
 
 			$search.css('padding-left', 0);
-			if (isMobile || $module.hasClass('et_pb_menu--style-centered')) {
+			if (isMobile || $module.hasClass('et_pb_menu--style-centered') || $module.hasClass('et_pb_fullwidth_menu--style-centered')) {
 				// 30 = logo margin-bottom.
 				$search.css('padding-top', logoHeight > 0 ? logoHeight + 30 : 0);
 			}
@@ -6675,13 +6681,24 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 	// Muti View Data Handler (Responsive + Hover)
 	var et_multi_view = {
 		contexts: ['content', 'attrs', 'styles', 'classes', 'visibility'],
-		windowWidth: $(window).width(),
-		init: function () {
+		screenMode: undefined,
+		windowWidth: undefined,
+		init: function (screenMode, windowWidth) {
+			et_multi_view.screenMode  = screenMode;
+			et_multi_view.windowWidth = windowWidth;
+
 			$('#main-header, #main-footer').off('mouseenter', et_multi_view.resetHoverStateHandler);
 			$('#main-header, #main-footer').on('mouseenter', et_multi_view.resetHoverStateHandler);
 
-			$('[data-et-multi-view]').each(function () {
-				var data = et_multi_view.getData($(this));
+			et_multi_view.getElements().each(function () {
+				var $multiView = $(this);
+
+				// Skip for builder element
+				if (et_multi_view.isBuilderElement($multiView)) {
+					return;
+				}
+
+				var data = et_multi_view.getData($multiView);
 
 				et_multi_view.normalStateHandler(data);
 
@@ -6721,7 +6738,14 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 			}
 
 			$hoverSelector.find('[data-et-multi-view]').each(function () {
-				datas.push(et_multi_view.getData($(this)));
+				var $multiView = $(this);
+
+				// Skip for builder element
+				if (et_multi_view.isBuilderElement($multiView)) {
+					return;
+				}
+
+				datas.push(et_multi_view.getData($multiView));
 			});
 
 			if (event.type === 'mouseenter' && !$hoverSelector.hasClass('et_multi_view__hovered')) {
@@ -6748,8 +6772,15 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 			}
 		},
 		resetHoverStateHandler: function ($exclude) {
-			$('[data-et-multi-view]').each(function () {
-				var data = et_multi_view.getData($(this));
+			et_multi_view.getElements().each(function () {
+				var $multiView = $(this);
+
+				// Skip for builder element
+				if (et_multi_view.isBuilderElement($multiView)) {
+					return;
+				}
+
+				var data = et_multi_view.getData($multiView);
 
 				if (data &&
 					data.$hoverSelector &&
@@ -7429,39 +7460,78 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 			}
 		},
 		getScreenMode: function () {
-			var screenMode;
-
-			if (et_multi_view.windowWidth > 980) {
-				screenMode = 'desktop';
-			} else if (et_multi_view.windowWidth > 767) {
-				screenMode = 'tablet';
-			} else {
-				screenMode = 'phone';
+			if (isBuilder && et_multi_view.screenMode) {
+				return et_multi_view.screenMode;
 			}
 
-			return screenMode;
+			var windowWidth = et_multi_view.getWindowWidth();
+
+			if (windowWidth > 980) {
+				return 'desktop';
+			}
+
+			if (windowWidth > 767) {
+				return 'tablet';
+			}
+
+			return 'phone';
 		},
+		getWindowWidth: function () {
+			if (et_multi_view.windowWidth) {
+				return et_multi_view.windowWidth;
+			}
+
+			if (isBuilder) {
+				return $(".et-core-frame").width();
+			}
+
+			return $(window).width();
+		},
+		getElements: function () {
+			if (isBuilder) {
+				return $(".et-core-frame").contents().find('[data-et-multi-view]');
+			}
+
+			return $('[data-et-multi-view]');
+		},
+		isBuilderElement: function ($element) {
+			return $element.closest('#et-fb-app').length > 0;
+		}
 	};
 
-	if (!isBuilder) {
-		$(document).ready(et_multi_view.init);
+	function etMultiViewBootstrap() {
+		if (isBuilder) {
+			$(window).on('et_fb_preview_mode_changed', function (event, screenMode) {
+				// Just a gimmick to make the event parameter used.
+				if ('et_fb_preview_mode_changed' !== event.type) {
+					return;
+				}
 
-		var et_multi_view_timer = null;
-		$(window).on('resize', function () {
-			// Make sure only to run this when the actual window size width is changed
-			var resizedWindowWidth = $(window).width();
+				et_multi_view.init(screenMode);
+			});
+		} else {
+			$(document).ready(function () {
+				et_multi_view.init();
+			});
 
-			if (resizedWindowWidth === et_multi_view.windowWidth) {
-				return;
-			}
+			var et_multi_view_window_resize_timer = null;
 
-			et_multi_view.windowWidth = resizedWindowWidth;
+			$(window).on('resize', function (event) {
+				// Bail early when the resize event is triggered programmatically.
+				if (!event.originalEvent || !event.originalEvent.isTrusted) {
+					return;
+				}
 
-			clearTimeout(et_multi_view_timer);
+				clearTimeout(et_multi_view_window_resize_timer);
 
-			et_multi_view_timer = setTimeout(et_multi_view.init, 300);
-		});
+				et_multi_view_window_resize_timer = setTimeout(function () {
+					et_multi_view.init(undefined, $(window).width());
+				}, 200);
+			});
+		}
 	}
+
+	etMultiViewBootstrap();
 
 	if (isBuilder) {
 		$(document).ready(function () {
