@@ -406,7 +406,12 @@ class ET_Builder_Section extends ET_Builder_Structure_Element {
 	 */
 	public function is_transparent_background( $background_color = '' ) {
 		$page_setting_section_background = et_builder_settings_get( 'et_pb_section_background_color', get_the_ID() );
-		return 'rgba(255,255,255,0)' === $background_color || ( et_is_builder_plugin_active() && '' === $background_color && '' === $page_setting_section_background );
+		$is_empty_background_color       = '' === $background_color && '' === $page_setting_section_background;
+		$is_layout_block                 = ET_GB_Block_Layout::is_layout_block() || ET_GB_Block_Layout::is_layout_block_preview();
+
+		return 'rgba(255,255,255,0)' === $background_color
+			|| ( $is_layout_block && $is_empty_background_color )
+			|| ( et_is_builder_plugin_active() && $is_empty_background_color );
 	}
 
 	/**

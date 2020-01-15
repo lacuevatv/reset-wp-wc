@@ -89,6 +89,7 @@ function et_setup_theme() {
 
 	// Load editor styling
 	add_editor_style( 'css/editor-style.css' );
+	add_editor_style( 'css/editor-blocks.css' );
 
 	// Load unminified scripts based on selected theme options field
 	add_filter( 'et_load_unminified_scripts', 'et_divi_load_unminified_scripts' );
@@ -6364,7 +6365,7 @@ function et_layout_body_class( $classes ) {
 	$classes[] = esc_attr( "et_pb_gutters{$gutter_width}" );
 
 	// Add the page builder class.
-	if ( et_pb_is_pagebuilder_used( get_the_ID() ) ) {
+	if ( et_pb_is_pagebuilder_used( get_the_ID() ) && ! ET_GB_Block_Layout::is_layout_block_preview() ) {
 		$classes[] = 'et_pb_pagebuilder_layout';
 	}
 
@@ -6477,6 +6478,8 @@ add_action( 'init', 'et_divi_activate_features' );
 
 require_once( get_template_directory() . '/et-pagebuilder/et-pagebuilder.php' );
 require_once get_template_directory() . '/includes/theme-builder.php';
+
+require_once( get_template_directory() . '/includes/block-editor-integration.php' );
 
 /**
  * Custom body classes for sidebar location in different places

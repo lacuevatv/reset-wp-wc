@@ -39,6 +39,8 @@ require_once ET_THEME_BUILDER_DIR . 'dynamic-content.php';
 // Conditional Includes.
 if ( et_is_woocommerce_plugin_active() ) {
 	require_once ET_THEME_BUILDER_DIR . 'woocommerce.php';
+	require_once ET_THEME_BUILDER_DIR . 'WoocommerceProductVariablePlaceholder.php';
+	require_once ET_THEME_BUILDER_DIR . 'WoocommerceProductVariablePlaceholderDataStoreCPT.php';
 }
 
 /**
@@ -595,13 +597,32 @@ function et_theme_builder_get_template_settings_options_for_post_type( $post_typ
 			continue;
 		}
 
-		$taxonomy_plural = ucwords( $taxonomy->labels->name );
-		// Translators: %1$s: Post type plural name; %2$s: Taxonomy plural name.
-		$label           = et_core_intentionally_unescaped( sprintf( __( '%1$s with Specific %2$s', 'et_builder' ), $post_type_plural, $taxonomy_plural ), 'react_jsx' );
+		$taxonomy_plural  = ucwords( $taxonomy->labels->name );
+		$use_short_plural = in_array( $taxonomy->name, array(
+			'project_category',
+			'project_tag',
+			'product_cat',
+			'product_tag',
+		), true );
 
-		if ( in_array( $taxonomy->name, array( 'category', 'project_category', 'product_cat' ) ) ) {
+		// Translators: %1$s: Post type plural name; %2$s: Taxonomy plural name.
+		$label = et_core_intentionally_unescaped(
+			sprintf(
+				__( '%1$s with Specific %2$s', 'et_builder' ),
+				$post_type_plural,
+				$use_short_plural ? esc_html__( 'Tags', 'et_builder' ) : $taxonomy_plural
+			),
+		'react_jsx' );
+
+		if ( in_array( $taxonomy->name, array( 'category', 'project_category', 'product_cat' ), true ) ) {
 			// Translators: %1$s: Post type plural name; %2$s: Taxonomy plural name.
-			$label = et_core_intentionally_unescaped( sprintf( __( '%1$s in Specific %2$s', 'et_builder' ), $post_type_plural, $taxonomy_plural ), 'react_jsx' );
+			$label = et_core_intentionally_unescaped(
+				sprintf(
+					__( '%1$s in Specific %2$s', 'et_builder' ),
+					$post_type_plural,
+					$use_short_plural ? esc_html__( 'Categories', 'et_builder' ) : $taxonomy_plural
+				),
+			'react_jsx' );
 		}
 
 		$group['settings'][] = array(
@@ -763,6 +784,21 @@ function et_theme_builder_get_template_settings_options_for_archive_pages() {
 		'options'  => array(
 			'label' => et_core_intentionally_unescaped( __( 'Users', 'et_builder' ), 'react_jsx' ),
 			'type'  => 'user',
+			'value' => '',
+		),
+	);
+
+	$group['settings'][] = array(
+		'id'       => implode(
+			ET_THEME_BUILDER_SETTING_SEPARATOR,
+			array( 'archive', 'user', 'role', '' )
+		),
+		'label'    => et_core_intentionally_unescaped( __( 'Specific Author Page By Role', 'et_builder' ), 'react_jsx' ),
+		'priority' => 53,
+		'validate' => 'et_theme_builder_template_setting_validate_archive_user_role',
+		'options'  => array(
+			'label' => et_core_intentionally_unescaped( __( 'Roles', 'et_builder' ), 'react_jsx' ),
+			'type'  => 'user_role',
 			'value' => '',
 		),
 	);
@@ -1026,6 +1062,25 @@ function et_theme_builder_get_template_setting_child_options( $parent, $include 
 
 			return $values;
 			break;
+
+		case 'user_role':
+			$roles  = wp_roles()->get_names();
+			$values = array();
+
+			foreach ( $roles as $role => $label ) {
+				$id            = $parent['id'] . $role;
+				$values[ $id ] = array(
+					'id'        => $id,
+					'parent'    => $parent['id'],
+					'label'     => et_core_intentionally_unescaped( $label, 'react_jsx' ),
+					'title'     => et_core_intentionally_unescaped( $role, 'react_jsx' ),
+					'priority'  => $parent['priority'],
+					'validate'  => $parent['validate'],
+				);
+			}
+
+			return $values;
+			break;
 	}
 
 	return array();
@@ -1049,7 +1104,7 @@ function et_theme_builder_get_template_layouts( $request = null, $cache = true, 
 		$request = ET_Theme_Builder_Request::from_current();
 	}
 
-	if ( null === $request ) {
+	if ( null === $request || ET_GB_Block_Layout::is_layout_block_preview() ) {
 		return array();
 	}
 

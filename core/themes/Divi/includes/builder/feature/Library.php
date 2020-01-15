@@ -637,6 +637,11 @@ class ET_Builder_Library {
 		 */
 		$post_types = apply_filters( 'et_library_builder_post_types', et_builder_get_builder_post_types() );
 
+		// Remove Extra's category layouts from "Your Existing Pages" layout list
+		if ( in_array( 'layout', $post_types ) ) {
+			unset( $post_types[ array_search( 'layout', $post_types ) ] );
+		}
+
 		if ( wp_doing_ajax() ) {
 			// VB case
 			$exclude = isset( $_POST['postId'] ) ? (int) $_POST['postId'] : false;

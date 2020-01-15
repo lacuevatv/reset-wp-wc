@@ -306,6 +306,13 @@ function et_builder_get_built_in_dynamic_content_fields( $post_id ) {
 		'type'  => 'text',
 	);
 
+	if ( et_builder_tb_enabled() ) {
+		$fields['term_description'] = array(
+			'label' => esc_html__( 'Category Description', 'et_builder' ),
+			'type'  => 'text',
+		);
+	}
+
 	$fields['site_title'] = array(
 		'label' => esc_html__( 'Site Title', 'et_builder' ),
 		'type'  => 'text',
@@ -340,6 +347,11 @@ function et_builder_get_built_in_dynamic_content_fields( $post_id ) {
 	$fields['post_link_url'] = array(
 		// Translators: %1$s: Post type name
 		'label'  => esc_html( sprintf( __( 'Current %1$s Link', 'et_builder' ), $post_type_label ) ),
+		'type'   => 'url',
+	);
+
+	$fields['post_author_url'] = array(
+		'label'  => esc_html__( 'Author Page Link', 'et_builder' ),
 		'type'   => 'url',
 	);
 
@@ -733,8 +745,25 @@ function et_builder_wrap_dynamic_content( $post_id, $name, $value, $settings ) {
 	$user_id     = get_post_field( 'post_author', $cap_post_id );
 
 	if ( ! user_can( $user_id, 'unfiltered_html' ) ) {
-		$before = esc_html( $before );
-		$after  = esc_html( $after );
+		$whitelist = array_merge(
+			wp_kses_allowed_html( '' ),
+			array(
+				'h1'   => array(),
+				'h2'   => array(),
+				'h3'   => array(),
+				'h4'   => array(),
+				'h5'   => array(),
+				'h6'   => array(),
+				'ol'   => array(),
+				'ul'   => array(),
+				'li'   => array(),
+				'span' => array(),
+				'p'    => array(),
+			)
+		);
+
+		$before = wp_kses( $before, $whitelist );
+		$after  = wp_kses( $after, $whitelist );
 	}
 
 	return $before . $value . $after;
@@ -778,7 +807,7 @@ function et_builder_filter_resolve_default_dynamic_content( $content, $name, $se
 				$content = et_builder_get_current_title( $post_id );
 			}
 
-			$content = esc_html( $content );
+			$content = et_core_intentionally_unescaped( $content, 'cap_based_sanitized' );
 			break;
 
 		case 'post_excerpt':
@@ -956,6 +985,10 @@ function et_builder_filter_resolve_default_dynamic_content( $content, $name, $se
 			$content = et_core_intentionally_unescaped( $author->description, 'cap_based_sanitized' );
 			break;
 
+		case 'term_description':
+			$content = et_core_intentionally_unescaped( term_description(), 'cap_based_sanitized' );
+			break;
+
 		case 'site_title':
 			$content = esc_html( get_bloginfo( 'name' ) );
 			break;
@@ -987,6 +1020,14 @@ function et_builder_filter_resolve_default_dynamic_content( $content, $name, $se
 			$content = esc_url( get_permalink( $post_id ) );
 			break;
 
+		case 'post_author_url':
+			if ( ! $author ) {
+				break;
+			}
+
+			$content = esc_url( get_author_posts_url( $author->ID ) );
+			break;
+
 		case 'home_url':
 			$content = esc_url( home_url( '/' ) );
 			break;
@@ -1001,18 +1042,26 @@ function et_builder_filter_resolve_default_dynamic_content( $content, $name, $se
 			break;
 
 		case 'post_featured_image':
-			if ( ! $post ) {
-				break;
-			}
-
 			if ( isset( $overrides[ $name ] ) ) {
 				$id      = (int) $overrides[ $name ];
 				$content = wp_get_attachment_image_url( $id, 'full' );
 				break;
 			}
 
-			$url = get_the_post_thumbnail_url( $post_id, 'full' );
-			$content = $url ? esc_url( $url ) : '';
+			if ( is_category() || is_tag() || is_tax() ) {
+				$term_id       = (int) get_queried_object_id();
+				$attachment_id = (int) get_term_meta( $term_id, 'thumbnail_id', true );
+				$url           = wp_get_attachment_image_url( $attachment_id, 'full' );
+				$content       = $url ? esc_url( $url ) : '';
+				break;
+			}
+
+			if ( $post ) {
+				$url     = get_the_post_thumbnail_url( $post_id, 'full' );
+				$content = $url ? esc_url( $url ) : '';
+				break;
+			}
+
 			break;
 
 		case 'post_author_profile_picture':

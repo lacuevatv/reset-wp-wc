@@ -68,10 +68,12 @@ class ET_Builder_Module_Fullwidth_Post_Slider extends ET_Builder_Module_Type_Pos
 						'tabbed_subtoggles' => true,
 						'bb_icons_support'  => true,
 						'css'               => array(
-							'link'  => "{$this->main_css_element} .et_pb_slide_content a",
-							'ul'    => "{$this->main_css_element} .et_pb_slide_content ul li",
-							'ol'    => "{$this->main_css_element} .et_pb_slide_content ol li",
-							'quote' => "{$this->main_css_element} .et_pb_slide_content blockquote",
+							'link'           => "{$this->main_css_element} .et_pb_slide_content a",
+							'ul'             => "{$this->main_css_element} .et_pb_slide_content ul li",
+							'ul_item_indent' => "{$this->main_css_element} .et_pb_slide_content ul",
+							'ol'             => "{$this->main_css_element} .et_pb_slide_content ol li",
+							'ol_item_indent' => "{$this->main_css_element} .et_pb_slide_content ol",
+							'quote'          => "{$this->main_css_element} .et_pb_slide_content blockquote",
 						),
 					),
 				),
@@ -420,7 +422,7 @@ class ET_Builder_Module_Fullwidth_Post_Slider extends ET_Builder_Module_Type_Pos
 					global $more;
 
 					// Page builder doesn't support more tag, so display the_content() in case of post made with page builder.
-					if ( et_pb_is_pagebuilder_used( get_the_ID() ) ) {
+					if ( et_pb_is_pagebuilder_used( get_the_ID() ) || has_block( 'divi/layout', get_the_ID() ) ) {
 
 						// do_shortcode for Divi Plugin instead of applying `the_content` filter to avoid conflicts with 3rd party themes.
 						$builder_post_content = et_is_builder_plugin_active() ? do_shortcode( $post_content ) : apply_filters( 'the_content', $post_content );
@@ -443,7 +445,7 @@ class ET_Builder_Module_Fullwidth_Post_Slider extends ET_Builder_Module_Type_Pos
 					global $more;
 
 					// page builder doesn't support more tag, so display the_content() in case of post made with page builder.
-					if ( et_pb_is_pagebuilder_used( get_the_ID() ) ) {
+					if ( et_pb_is_pagebuilder_used( get_the_ID() || has_block( 'divi/layout', get_the_ID() ) ) ) {
 
 						// do_shortcode for Divi Plugin instead of applying `the_content` filter to avoid conflicts with 3rd party themes.
 						$builder_post_content = et_is_builder_plugin_active() ? do_shortcode( $post_content ) : apply_filters( 'the_content', $post_content );

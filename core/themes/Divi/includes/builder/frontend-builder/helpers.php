@@ -59,7 +59,7 @@ function et_fb_comments_submit_button( $submit_button ) {
 
 /**
  * Generate custom comments number for Comments Module preview in Theme Builder.
- * 
+ *
  * @return string
  */
 function et_builder_set_comments_number() {
@@ -68,7 +68,7 @@ function et_builder_set_comments_number() {
 
 /**
  * Generate Dummy comment for Comments Module preview in Theme Builder.
- * 
+ *
  * @return WP_Comment[]
  */
 function et_builder_add_fake_comments() {
@@ -83,7 +83,7 @@ function et_builder_add_fake_comments() {
 /**
  * Append all default comment fields such as Author, Email, Website to Comment field for Comments Module preview in Theme Builder.
  * @see comment_form() in /wp-includes/comment-template.php
- * 
+ *
  * @return string
  */
 function et_builder_set_comment_fields( $field ) {
@@ -106,7 +106,7 @@ function et_builder_set_comment_fields( $field ) {
 		esc_attr( $commenter['comment_author_email'] ),
 		et_core_intentionally_unescaped( $html_req, 'fixed_string' )
 	);
-	
+
 	$url = sprintf(
 		'<p class="comment-form-url"><label for="url">%1$s</label><input id="url" name="url" type="url" value="%2$s" size="30" maxlength="200" /></p>',
 		esc_html__( 'Website', 'et_builder' ),
@@ -119,7 +119,7 @@ function et_builder_set_comment_fields( $field ) {
 // comments template cannot be generated via AJAX so prepare it beforehand
 function et_fb_get_comments_markup() {
 	global $post;
-	
+
 	$post_type = isset( $post->post_type ) ? $post->post_type : false;
 
 	// Modify the Comments content for the Comment Module preview in TB.
@@ -189,6 +189,18 @@ function et_fb_get_dynamic_backend_helpers() {
 	$layout_type = '';
 	$layout_scope = '';
 	$layout_built_for = '';
+
+	// Override $post data if current visual builder is rendering layout block; This is needed
+	// because block editor might be used in CPT that has no frontend such as reusable block's
+	// `wp_block` CPT so layout block preview needs to be rendered using latest / other post
+	// frontend. To correctly render and update the layout, adjust post ID and other data accordingly
+	$is_layout_block_preview = ET_GB_Block_Layout::is_layout_block_preview();
+
+	if ( $is_layout_block_preview && isset( $_GET['et_post_id' ] ) ) {
+		$et_post_id = (int) $_GET['et_post_id'];
+
+		$post = get_post( $et_post_id );
+	}
 
 	$post_type    = isset( $post->post_type ) ? $post->post_type : false;
 	$post_id      = isset( $post->ID ) ? $post->ID : false;
@@ -267,7 +279,7 @@ function et_fb_get_dynamic_backend_helpers() {
 		'pageSettingsValues'              => ET_Builder_Settings::get_values(),
 		'abTestingSubjects'               => false !== ( $all_subjects_raw = get_post_meta( $post_id, '_et_pb_ab_subjects', true ) ) ? explode( ',', $all_subjects_raw ) : array(),
 		'productTourText'                 => et_fb_get_product_tour_text( $post_id ),
-		'show_page_creation'              => get_post_meta( $post_id, '_et_pb_show_page_creation', true ),
+		'show_page_creation'              => $is_layout_block_preview ? '' : get_post_meta( $post_id, '_et_pb_show_page_creation', true ),
 		'mediaButtons'                    => et_builder_get_media_buttons(),
 		'shortcode_tags'                  => et_fb_shortcode_tags(),
 		'customizer'                      => array(
@@ -367,6 +379,7 @@ function et_fb_get_dynamic_backend_helpers() {
 		),
 		'customDefaults'                  => ET_Builder_Element::get_custom_defaults(),
 		'module_cache_filename_id'        => ET_Builder_Element::get_cache_filename_id( $post_type ),
+		'registeredPostTypeOptions'       => et_get_registered_post_type_options(),
 	);
 
 	$helpers['css'] = array(
@@ -390,13 +403,17 @@ function et_fb_get_dynamic_backend_helpers() {
 // This function is used to add static helpers whose content changes rarely
 // eg: google fonts, module defaults and so on.
 function et_fb_get_static_backend_helpers($post_type) {
-
-	$use_google_fonts = et_core_use_google_fonts();
-	$websafe_fonts = et_builder_get_websafe_fonts();
-	$default_fonts_set = array_merge( array( 'Default' => array() ), $websafe_fonts );
-	$google_fonts = $use_google_fonts ? array_merge( $default_fonts_set, et_builder_get_google_fonts() ) : $default_fonts_set;
 	$custom_user_fonts = et_builder_get_custom_fonts();
-	$current_url  = ( is_ssl() ? 'https://' : 'http://' ) . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+	$use_google_fonts  = et_core_use_google_fonts();
+	$websafe_fonts     = et_builder_get_websafe_fonts();
+	$google_fonts      = $websafe_fonts;
+
+	if ( $use_google_fonts ) {
+		$google_fonts = array_merge( $websafe_fonts, et_builder_get_google_fonts() ) ;
+		ksort( $google_fonts );
+	}
+
+	$google_fonts = array_merge( array( 'Default' => array() ), $google_fonts );
 
 	/**
 	 * Filters modules list.
@@ -450,6 +467,22 @@ function et_fb_get_static_backend_helpers($post_type) {
 		'autosaveInterval'             => et_builder_autosave_interval(),
 		'shortcodeObject'              => array(),
 		'autosaveShortcodeObject'      => array(),
+		'tinymcePlugins'               => array(
+			'autolink',
+			'link',
+			'image',
+			'lists',
+			'print',
+			'preview',
+			'autoresize',
+			'textcolor',
+			'table',
+			'paste',
+			'fullscreen',
+			'charmap',
+			'emoticons',
+			'wpview',
+		),
 		'tinymceSkinUrl'               => ET_FB_ASSETS_URI . '/vendors/tinymce-skin',
 		'tinymceCSSFiles'              => esc_url( includes_url( 'js/tinymce' ) . '/skins/wordpress/wp-content.css' ),
 		'images_uri'                   => ET_BUILDER_URI .'/images',
@@ -1424,6 +1457,7 @@ function et_fb_get_static_backend_helpers($post_type) {
 		'modules'                      => array_merge( $moduolesI10n, $aditionalI10n ),
 		'saveButtonText'               => esc_attr__( 'Save', 'et_builder' ),
 		'saveDraftButtonText'          => esc_attr__( 'Save Draft', 'et_builder' ),
+		'saveLayoutBlockButtonText'    => esc_attr__( 'Save & Exit', 'et_builder' ),
 		'publishButtonText'            => ( is_page() && ! current_user_can( 'publish_pages' ) ) || ( ! is_page() && ! current_user_can( 'publish_posts' ) ) ? esc_attr__( 'Submit', 'et_builder' ) : esc_attr__( 'Publish', 'et_builder' ),
 		'controls'                     => array(
 			'tinymce'                  => array(

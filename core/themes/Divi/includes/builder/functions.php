@@ -4,7 +4,7 @@ require_once 'module/helpers/Overflow.php';
 
 if ( ! defined( 'ET_BUILDER_PRODUCT_VERSION' ) ) {
 	// Note, this will be updated automatically during grunt release task.
-	define( 'ET_BUILDER_PRODUCT_VERSION', '4.0.9' );
+	define( 'ET_BUILDER_PRODUCT_VERSION', '4.1' );
 }
 
 if ( ! defined( 'ET_BUILDER_VERSION' ) ) {
@@ -767,6 +767,10 @@ function et_fb_conditional_tag_params() {
 		'is_custom_post_type'         => et_builder_is_post_type_custom( $post_type ),
 		'is_layout_post_type'         => et_theme_builder_is_layout_post_type( $post_type ),
 		'is_rich_editor'              => 'true' === apply_filters( 'user_can_richedit', get_user_option( 'rich_editing' ) ) ? 'yes' : 'no',
+
+		// Pass falsey as empty string so it remains falsey when conditionalTags is fetched and
+		// passed string as AJAX payload (on AJAX string, false bool becomes 'false' string)
+		'is_layout_block'             => ET_GB_Block_Layout::is_layout_block_preview() ? true : '',
 	);
 
 	return apply_filters( 'et_fb_conditional_tag_params', $conditional_tags );
@@ -1006,6 +1010,20 @@ function et_fb_current_page_woocommerce_components() {
 	$cpt_has_wc_components = $is_product_cpt || $is_tb;
 	$has_wc_components     = et_is_woocommerce_plugin_active() && $cpt_has_wc_components;
 
+	if ( $has_wc_components && $is_tb ) {
+		// Set upsells ID for upsell module in TB
+		ET_Theme_Builder_Woocommerce_Product_Variable_Placeholder::set_tb_upsells_ids();
+
+		// Force set product's class to ET_Theme_Builder_Woocommerce_Product_Variable_Placeholder in TB
+		add_filter( 'woocommerce_product_class', 'et_theme_builder_wc_product_class' );
+
+		// Set product categories and tags in TB
+		add_filter( 'get_the_terms', 'et_theme_builder_wc_terms', 10, 3 );
+
+		// Use Divi's image placeholder in TB
+		add_filter( 'woocommerce_single_product_image_thumbnail_html', 'et_builder_wc_placeholder_img' );
+	}
+
 	$woocommerce_components = ! $has_wc_components ? array() : array(
 		'et_pb_wc_add_to_cart'      => ET_Builder_Module_Woocommerce_Add_To_Cart::get_add_to_cart(),
 		'et_pb_wc_additional_info'  => ET_Builder_Module_Woocommerce_Additional_Info::get_additional_info(),
@@ -1146,6 +1164,7 @@ function et_fb_current_page_params() {
 		'paged'                    => is_front_page() ? $et_paged : $paged,
 		'post_modified'            => isset( $post->ID ) ? esc_attr( $post->post_modified ) : '',
 		'lang'                     => get_locale(),
+		'blockId'                  => ET_GB_Block_Layout::is_layout_block_preview() ? sanitize_title( et_()->array_get( $_GET, 'blockId', '' ) ) : '',
 		'langCode'                 => get_locale(),
 		'page_layout'              => $post_id ? get_post_meta( $post_id, '_et_pb_page_layout', true ) : '',
 		'woocommerceComponents'    => $exclude_woo ? array() : et_fb_current_page_woocommerce_components(),
@@ -1336,6 +1355,17 @@ function et_fb_process_to_shortcode( $object, $options = array(), $library_item_
 					}
 				}
 			} else {
+				// Since WordPress version 5.1, any links in the content that
+				// has "target" attribute will be automatically added
+				// rel="noreferrer noopener" attribute. This attribute added
+				// after the shortcode processed in et_fb_process_to_shortcode
+				// function. This become an issue for the builder while parsing the shortcode attributes
+				// because the double quote that wrapping the "rel" attribute value is not encoded.
+				// So we need to manipulate "target" attribute here before storing the content by renaming
+				// is as "data-et-target-link". Later in "et_pb_fix_shortcodes" function
+				// we will turn it back as "target"
+				$value = str_replace( ' target=',  ' data-et-target-link=', $value );
+
 				$is_include_attr = false;
 
 				if ( '' === $value
@@ -1577,12 +1607,28 @@ function et_fb_ajax_save() {
 
 	$update = false;
 
+	$utils  = ET_Core_Data_Utils::instance();
+
 	$layout_type = isset( $_POST['layout_type'] ) ? sanitize_text_field( $_POST['layout_type'] ) : '';
 
 	if ( ! isset( $_POST['skip_post_update'] ) ) {
-		$shortcode_data = json_decode( stripslashes( $_POST['modules'] ), true );
+		$is_layout_block_preview = sanitize_text_field( $utils->array_get( $_POST, 'options.conditional_tags.is_layout_block', '' ) );
+		$block_id                = sanitize_title( $utils->array_get( $_POST, 'options.current_page.blockId', '' ) );
+		$shortcode_data          = json_decode( stripslashes( $_POST['modules'] ), true );
 
-		if ( ! $built_for_type = get_post_meta( $post_id, '_et_pb_built_for_post_type', true ) ) {
+		// Cast as bool if falsey; blockId is retrieved from ajax request, and
+		// already return empty string (falsey) if no value found. Nevertheless let's be more safe.
+		if ( ! $block_id ) {
+			$block_id = false;
+		}
+
+		// Cast as bool if falsey; is_layout_block_preview is retrieved from ajax request, and
+		// already return empty string (falsey) if no value found. Nevertheless let's be more safe.
+		if ( ! $is_layout_block_preview ) {
+			$is_layout_block_preview = false;
+		}
+
+		if ( ! $built_for_type = get_post_meta( $post_id, '_et_pb_built_for_post_type', true ) && ! $is_layout_block_preview ) {
 			update_post_meta( $post_id, '_et_pb_built_for_post_type', 'page' );
 		}
 
@@ -1591,6 +1637,36 @@ function et_fb_ajax_save() {
 		// Store a copy of the sanitized post content in case wpkses alters it since that
 		// would cause our check at the end of this function to fail.
 		$sanitized_content = sanitize_post_field( 'post_content', $post_content, $post_id, 'db' );
+
+		// Exit early for layout block update; builder should not actually save post content in this scenario
+		// Update post meta and let it is being used to update layoutContent on editor
+		if ( $is_layout_block_preview && $block_id ) {
+			$layout_preview_meta_key = "_et_block_layout_preview_{$block_id}";
+			$saved_layout            = get_post_meta( $post_id, $layout_preview_meta_key, true );
+
+			// If saved layout is identical to the the layout sent via AJAX, return send json success;
+			// this is needed because update_post_meta() returns false if the saved layout is identical
+			// to the the one given as param
+			if ( ! empty( $saved_layout ) && $saved_layout === $post_content ) {
+				wp_send_json_success( array(
+					'save_verification' => true,
+				) );
+
+				wp_die();
+			}
+
+			$update = update_post_meta( $post_id, $layout_preview_meta_key, $post_content );
+
+			if ( $update ) {
+				wp_send_json_success( array(
+					'save_verification' => true,
+				) );
+			} else {
+				wp_send_json_error();
+			}
+
+			wp_die();
+		}
 
 		$update = wp_update_post( array(
 			'ID'           => $post_id,
@@ -3774,9 +3850,14 @@ add_action( 'upgrader_process_complete', 'et_builder_theme_or_plugin_updated_cb'
 add_action( 'et_support_center_toggle_safe_mode', 'et_builder_theme_or_plugin_updated_cb', 10, 0 );
 endif;
 
-// Register BFB scripts
-if ( ! function_exists( 'et_bfb_enqueue_scripts' ) ):
-function et_bfb_enqueue_scripts() {
+/**
+ * Enqueue scripts that are required by BFB and Layout Block. These scripts are abstracted into
+ * separated file so Layout Block can enqueue the same sets of scripts without re-register and
+ * re-enqueue them
+ *
+ * @since 4.1.0
+ */
+function et_bfb_enqueue_scripts_dependencies() {
 	global $wp_version, $post;
 
 	$wp_major_version = substr( $wp_version, 0, 3 );
@@ -3806,6 +3887,15 @@ function et_bfb_enqueue_scripts() {
 		// Use bundled wp-hooks script when WP < 5.0
 		wp_enqueue_script( 'wp-hooks', ET_BUILDER_URI. '/frontend-builder/assets/backports/hooks.js' );
 	}
+}
+
+// Register BFB scripts
+if ( ! function_exists( 'et_bfb_enqueue_scripts' ) ):
+function et_bfb_enqueue_scripts() {
+	global $post;
+
+	// Enqueue scripts required by BFB
+	et_bfb_enqueue_scripts_dependencies();
 
 	wp_enqueue_script( 'et_bfb_admin_js', ET_BUILDER_URI . '/scripts/bfb_admin_script.js', array( 'jquery', 'et_pb_media_library' ), ET_BUILDER_PRODUCT_VERSION, true );
 	wp_localize_script( 'et_bfb_admin_js', 'et_bfb_options', apply_filters( 'et_bfb_options', array(
@@ -4393,6 +4483,12 @@ endif;
 
 if ( ! function_exists( 'et_pb_fix_shortcodes' ) ){
 	function et_pb_fix_shortcodes( $content, $is_raw_content = false ) {
+		// Turn back the "data-et-target-link" attribute as "target" attribte
+		// that has been made before saving the content in "et_fb_process_to_shortcode" function.
+		if ( false !== strpos( $content, 'data-et-target-link=' ) ) {
+			$content = str_replace( ' data-et-target-link=', ' target=', $content );
+		}
+
 		if ( $is_raw_content ) {
 			$content = et_builder_replace_code_content_entities( $content );
 			$content = ET_Builder_Element::convert_smart_quotes_and_amp( $content );
@@ -7234,7 +7330,8 @@ function et_builder_update_settings( $settings, $post_id = 'global' ) {
 	$update    = array();
 
 	foreach ( (array) $settings as $setting_key => $setting_value ) {
-		$setting_key = $is_BB ? substr( $setting_key, 1 ) : $setting_key;
+		$raw_setting_value = $setting_value;
+		$setting_key       = $is_BB ? substr( $setting_key, 1 ) : $setting_key;
 
 		// Verify setting key
 		if ( ! isset( $fields[ $setting_key ] ) || ! isset( $fields[ $setting_key ]['type'] ) ) {
@@ -7312,8 +7409,9 @@ function et_builder_update_settings( $settings, $post_id = 'global' ) {
 		if ( false !== $post_field ) {
 			// Only allowed in VB
 			if ( ! ( $is_global || $is_BB ) ) {
-				// Save the post field so we can do a single update
-				$update[ $post_field ] = $setting_value;
+				// Save the post field so we can do a single update.
+				// Use the raw value and rely on wp_update_post to sanitize it in order to allow certain HTML tags.
+				$update[ $post_field ] = $raw_setting_value;
 			}
 			continue;
 		}
@@ -8037,7 +8135,8 @@ function et_pb_all_role_options() {
 					'name'    => esc_html__( 'Divi Library', 'et_builder' ),
 				),
 				'theme_builder' => array(
-					'name'    => esc_html__( 'Theme Builder', 'et_builder' ),
+					'name'          => esc_html__( 'Theme Builder', 'et_builder' ),
+					'applicability' => array( 'administrator', 'editor' ),
 				),
 				'ab_testing' => array(
 					'name'    => esc_html__( 'Split Testing', 'et_builder' ),

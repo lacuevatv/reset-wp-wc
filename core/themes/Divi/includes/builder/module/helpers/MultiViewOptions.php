@@ -943,8 +943,7 @@ class ET_Builder_Module_Helper_MultiViewOptions {
 	 *
 	 *     @type string          $tag                HTML element tag name. Example: div, img, p. Default is span.
 	 *
-	 *     @type string|callable $content            Param that will be used to populate the content data.
-	 *                                               Callable function as value is allowed and executed. Example: 'get_the_title' function.
+	 *     @type string          $content            Param that will be used to populate the content data.
 	 *                                               Use props name wrapped with 2 curly brackets within the value for find & replace wildcard: {{props_name}}
 	 *
 	 *     @type array           $attrs              Param that will be used to populate the attributes data.
@@ -1168,8 +1167,7 @@ class ET_Builder_Module_Helper_MultiViewOptions {
 	 * @param array   $contexts {
 	 *       Data contexts.
 	 *
-	 *     @type string|callable $content            Param that will be used to populate the content data.
-	 *                                               Callable function as value is allowed and executed. Example: 'get_the_title' function.
+	 *     @type string          $content            Param that will be used to populate the content data.
 	 *                                               Use props name wrapped with 2 curly brackets within the value for find & replace wildcard: {{props_name}}
 	 *
 	 *     @type array           $attrs              Param that will be used to populate the attributes data.
@@ -1271,11 +1269,31 @@ class ET_Builder_Module_Helper_MultiViewOptions {
 				}
 			}
 
-			$has_content_tablet = isset( $data['content']['tablet'] );
-			$has_content_phone  = isset( $data['content']['phone'] );
+			$content_desktop = et_()->array_get( $data, 'content.desktop', null );
+			$content_tablet  = et_()->array_get( $data, 'content.tablet', null );
+			$content_phone   = et_()->array_get( $data, 'content.phone', null );
 
-			$has_visibility_tablet = isset( $data['visibility']['tablet'] );
-			$has_visibility_phone  = isset( $data['visibility']['phone'] );
+			$visibility_desktop = et_()->array_get( $data, 'visibility.desktop', null );
+			$visibility_tablet  = et_()->array_get( $data, 'visibility.tablet', null );
+			$visibility_phone   = et_()->array_get( $data, 'visibility.phone', null );
+
+			$is_hidden_on_load_tablet = false;
+			if ( ! is_null( $content_tablet ) && $content_desktop !== $content_tablet ) {
+				$is_hidden_on_load_tablet = true;
+			}
+
+			if ( ! is_null( $visibility_tablet ) && $visibility_desktop !== $visibility_tablet ) {
+				$is_hidden_on_load_tablet = true;
+			}
+
+			$is_hidden_on_load_phone = false;
+			if ( ! is_null( $content_phone ) && $content_desktop !== $content_phone ) {
+				$is_hidden_on_load_phone = true;
+			}
+
+			if ( ! is_null( $visibility_phone ) && $visibility_desktop !== $visibility_phone ) {
+				$is_hidden_on_load_phone = true;
+			}
 
 			$data = array(
 				'schema' => $data,
@@ -1315,22 +1333,22 @@ class ET_Builder_Module_Helper_MultiViewOptions {
 
 				$output[ $data_attr_key ] = esc_attr( wp_json_encode( $data ) );
 
-				if ( $has_content_tablet || $has_visibility_tablet ) {
+				if ( $is_hidden_on_load_tablet ) {
 					$output[ $data_attr_key. '-load-tablet-hidden'] = 'true';
 				}
 
-				if ( $has_content_phone || $has_visibility_phone ) {
+				if ( $is_hidden_on_load_phone ) {
 					$output[ $data_attr_key. '-load-phone-hidden'] = 'true';
 				}
 			} else {
 				// Format the html data attribute output.
 				$output = sprintf( ' %1$s="%2$s"', $data_attr_key, esc_attr( wp_json_encode( $data ) ) );
-	
-				if ( $has_content_tablet || $has_visibility_tablet ) {
+
+				if ( $is_hidden_on_load_tablet ) {
 					$output .= sprintf( ' %1$s="%2$s"', $data_attr_key . '-load-tablet-hidden', 'true' );
 				}
-	
-				if ( $has_content_phone || $has_visibility_phone ) {
+
+				if ( $is_hidden_on_load_phone ) {
 					$output .= sprintf( ' %1$s="%2$s"', $data_attr_key . '-load-phone-hidden', 'true' );
 				}
 			}
@@ -1349,8 +1367,7 @@ class ET_Builder_Module_Helper_MultiViewOptions {
 	 * @param array $contexts {
 	 *     Data contexts.
 	 *
-	 *     @type string|callable $content            Param that will be used to populate the content data.
-	 *                                               Callable function as value is allowed and executed. Example: 'get_the_title' function.
+	 *     @type string          $content            Param that will be used to populate the content data.
 	 *                                               Use props name wrapped with 2 curly brackets within the value for find & replace wildcard: {{props_name}}
 	 *
 	 *     @type array           $attrs              Param that will be used to populate the attributes data.
@@ -1426,7 +1443,7 @@ class ET_Builder_Module_Helper_MultiViewOptions {
 	 *
 	 * @since 3.27.1
 	 *
-	 * @param string|callable $content Data contexts.
+	 * @param string $content Data contexts.
 	 *
 	 * @return array
 	 */
@@ -1481,10 +1498,6 @@ class ET_Builder_Module_Helper_MultiViewOptions {
 				}
 			}
 		} else {
-			if ( is_callable( $content ) ) {
-				$content = call_user_func( $content );
-			}
-
 			// Manipulate the value if needed.
 			$value = $this->filter_value(
 				$content,

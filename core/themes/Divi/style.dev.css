@@ -7,7 +7,7 @@
 /*!
 Theme Name: Divi
 Theme URI: http://www.elegantthemes.com/gallery/divi/
-Version: 4.0.9
+Version: 4.1
 Description: Smart. Flexible. Beautiful. Divi is the most powerful theme in our collection.
 Author: Elegant Themes
 Author URI: http://www.elegantthemes.com
@@ -120,6 +120,15 @@ ins {
 
 del {
 	text-decoration: line-through;
+}
+
+pre {
+	overflow: auto;
+	padding: 10px;
+}
+
+figure {
+	margin: 0;
 }
 
 table {
@@ -2021,6 +2030,10 @@ body.single .et_audio_content {
 }
 
 .et_pb_pagebuilder_layout.single-post:not(.et-tb-has-body) #main-content .et_pb_with_background .et_pb_row {
+	width: 80%;
+}
+
+.et_pb_pagebuilder_layout.single.et_full_width_page:not(.et-tb-has-body) #main-content .et_pb_row {
 	width: 80%;
 }
 
@@ -4619,6 +4632,32 @@ ul.et_pb_side_nav .side_nav_item a.active {
 	line-height: 16px;
 }
 
+/* Block Editor */
+body #main-content .et_builder_inner_content > h1,
+body #main-content .et_builder_inner_content > h2,
+body #main-content .et_builder_inner_content > h3,
+body #main-content .et_builder_inner_content > h4,
+body #main-content .et_builder_inner_content > h5,
+body #main-content .et_builder_inner_content > h6 {
+	line-height: 1.4em;
+}
+
+body #main-content .et_builder_inner_content > p {
+	line-height: 1.7em;
+}
+
+.wp-block-pullquote {
+	margin: 20px 0 30px;
+}
+
+.wp-block-pullquote.has-background blockquote {
+	border-left: none;
+}
+
+.wp-block-group.has-background {
+	padding: 1.5em 1.5em 0.5em;
+}
+
 /* Responsive Styles Large Desktop And Above */
 @media all and (min-width: 1405px) {
 	.et_vertical_nav.et_right_sidebar.woocommerce #main-content div.product div.images,
@@ -6760,6 +6799,12 @@ ul.et_pb_side_nav .side_nav_item a.active {
 .evcal_event_details .evcal_evdata_cell .eventon_details_shading_bot.eventon_details_shading_bot {
 	/* Fix the "more" expanding link in list view to appear over builder links. */
 	z-index: 3;
+}
+
+/* Blocks */
+/* Divi Layout Block */
+.wp-block-divi-layout {
+	margin-bottom: 1em;
 }
 
 /**
@@ -13277,6 +13322,9 @@ p.et_pb_gallery_caption {
 }
 
 /* Default Border Styles */
+.et_pb_with_border {
+	position: relative;
+}
 .et_pb_with_border,
 .et_pb_with_border .et_pb_portfolio_item,
 .et_pb_with_border .et_pb_portfolio_image,
@@ -23760,7 +23808,7 @@ body.woocommerce-page #content .et_builder_inner_content.product .et_pb_wc_image
 .et_multi_view_hidden_image {
 	display: none !important;
 }
-@media all and (max-width: 980px) {
+@media all and (min-width: 768px) and (max-width: 980px) {
 	[data-et-multi-view-load-tablet-hidden="true"]:not(.et_multi_view_swapped) {
 		display: none !important;
 	}

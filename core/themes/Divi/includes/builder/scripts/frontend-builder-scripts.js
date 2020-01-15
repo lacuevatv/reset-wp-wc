@@ -3,14 +3,19 @@ var isBuilder = 'object' === typeof window.ET_Builder;
  
 /*! ET frontend-builder-scripts.js */
 (function($){
-	var $et_window = $(window);
-	var $et_top_window = isBuilder ? window.top.jQuery(window.top) : $(window);
-	var isTB = $('body').hasClass('et-tb');
-	var isBFB = $('body').hasClass('et-bfb');
-	var isVB = isBuilder && !isBFB;
-	var topWindow = isBuilder ? window.top : window;
+	var $et_window               = $(window);
+	var isBlockLayoutPreview     = 'undefined' !== typeof window.ETBlockLayoutPreview && $('body').hasClass('et-block-layout-preview');
+	var $fullscreenSectionWindow = isBlockLayoutPreview ? $(window.top) : $(window);
+	var $et_top_window           = isBuilder ? window.top.jQuery(window.top) : $(window);
+	var isTB                     = $('body').hasClass('et-tb');
+	var isBFB                    = $('body').hasClass('et-bfb');
+	var isVB                     = isBuilder && !isBFB;
+	var topWindow                = isBuilder ? window.top : window;
 
 	var isScrollOnAppWindow = function() {
+		if (isBlockLayoutPreview) {
+			return false;
+		}
 		return isVB && ($('html').is('.et-fb-preview--wireframe') || $('html').is('.et-fb-preview--desktop'));
 	};
 
@@ -1414,7 +1419,7 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 
 			et_init_audio_modules();
 
-			if ( $et_post_gallery.length ) {
+			if (!isBlockLayoutPreview && $et_post_gallery.length > 0) {
 				// swipe support in magnific popup only if gallery exists
 				var magnificPopup = $.magnificPopup.instance;
 
@@ -1449,7 +1454,7 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 				$et_post_gallery.find( 'a' ).unbind( 'click' );
 			}
 
-			if ($et_lightbox_image.length || isBuilder) {
+			if (!isBlockLayoutPreview && ($et_lightbox_image.length > 0 || isBuilder)) {
 				// prevent attaching of any further actions on click
 				$et_lightbox_image.unbind( 'click' );
 				$et_lightbox_image.bind( 'click' );
@@ -2944,6 +2949,17 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 				var $this = $(this);
 				var element_top = isBuilderModeZoom() ? $this.offset().top / 2 : $this.offset().top;
 				var window_top = $parallaxWindow.scrollTop();
+
+
+				if (isBlockLayoutPreview) {
+					// Preview offset is what is changing on gutenberg due to window scroll
+					// happens on `.edit-post-layout__content`
+					var blockPreviewId   = '#divi-layout-iframe-' + ETBlockLayoutPreview.blockId;
+					var previewOffsetTop = window.top.jQuery(blockPreviewId).offset().top;
+
+					element_top += previewOffsetTop;
+				}
+
 				var y_pos = ( ( ( window_top + $et_top_window.height() ) - element_top ) * 0.3 );
 				var main_position;
 
@@ -2975,8 +2991,8 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 
 			// Emulate CSS Parallax (background-attachment: fixed) effect via absolute image positioning
 			window.et_apply_builder_css_parallax = function() {
-				// This callback is for builder only
-				if (!isBuilder) {
+				// This callback is for builder and layout block preview
+				if (!isBuilder && !isBlockLayoutPreview) {
 					return;
 				}
 
@@ -2997,17 +3013,30 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 					return;
 				}
 
-				var $parallaxWindow = isTB ? window.top.jQuery('#et-fb-app') : $et_top_window;
+				var isTopWindow             = isBuilder || isTB || isBlockLayoutPreview ? true : false;
+				var topWindow               = isTopWindow ? window.top : window;
+				var $parallaxWindow         = isTopWindow ? window.top.jQuery('#et-fb-app') : $et_top_window;
+				var parallaxWindowScrollTop = $parallaxWindow.scrollTop();
+				var backgroundOffset        = isBFB ? topWindow.jQuery('#et_pb_layout .inside').offset().top : 0;
+				var heightMultiplier        = isBuilderModeZoom() ? 2 : 1;
+				var parentOffset            = $this_parent.offset();
+				var parentOffsetTop         = isBuilderModeZoom() ? parentOffset.top / 2 : parentOffset.top;
 
-				var backgroundOffset = isBFB ? topWindow.jQuery('#et_pb_layout .inside').offset().top : 0;
-				var heightMultiplier = isBuilderModeZoom() ? 2 : 1;
-				var parentOffset = $this_parent.offset();
-				var parentOffsetTop = isBuilderModeZoom() ? parentOffset.top / 2 : parentOffset.top;
+				if (isBlockLayoutPreview) {
+					// Important: in gutenberg, scroll doesn't happen on window; it's here instead
+					$parallaxWindow  = topWindow.jQuery('.edit-post-layout__content');
+
+					// Background offset is relative to block's preview iframe
+					backgroundOffset = topWindow.jQuery('#divi-layout-iframe-' + ETBlockLayoutPreview.blockId).offset().top;
+
+					// Scroll happens on DOM which has fixed positioning. Hence
+					parallaxWindowScrollTop = $parallaxWindow.offset().top;
+				}
 
 				$this_parallax.css({
 					width: $(window).width(),
 					height: $parallaxWindow.innerHeight() * heightMultiplier,
-					top: ($parallaxWindow.scrollTop() - backgroundOffset) - parentOffsetTop,
+					top: (parallaxWindowScrollTop - backgroundOffset) - parentOffsetTop,
 					left: 0 - parentOffset.left,
 					backgroundAttachment: 'scroll'
 				});
@@ -4803,6 +4832,14 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 										return;
 									}
 
+									// No need to update animated circle counter as soon as it hits
+									// bottom of the page in layout block preview page since layout
+									// block preview page is being rendered in 100% height inside
+									// Block Editor
+									if (isBlockLayoutPreview) {
+										return;
+									}
+
 									$this_counter.data('easyPieChart').update( $this_counter.data('number-value') );
 
 									$this_counter.data( 'PieChartHasLoaded', true );
@@ -5277,11 +5314,12 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 			var fullscreen_section_timeout = {};
 
 			window.et_calc_fullscreen_section = function(event, section) {
-				var isResizing = typeof event === 'object' && event.type === 'resize',
-					$et_window = $(topWindow),
-					$this_section = section || $(this),
-					section_index = $this_section.index('.et_pb_fullscreen'),
-					timeout = isResizing && typeof fullscreen_section_width[section_index] !== 'undefined' && event.target.window_width > fullscreen_section_width[section_index] ? 800 : 0;
+				var isResizing    = typeof event === 'object' && event.type === 'resize';
+				var topWindow     = isBuilder || isBlockLayoutPreview ? window.top : window;
+				var $et_window    = $(topWindow);
+				var $this_section = section || $(this);
+				var section_index = $this_section.index('.et_pb_fullscreen');
+				var timeout       = isResizing && typeof fullscreen_section_width[section_index] !== 'undefined' && event.target.window_width > fullscreen_section_width[section_index] ? 800 : 0;
 
 					fullscreen_section_width[section_index] = $et_window.width();
 
@@ -5492,13 +5530,13 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 				clearTimeout(et_calc_fullscreen_section.timeout);
 
 				et_calc_fullscreen_section.timeout = setTimeout(function () {
-					$et_window.off('resize', et_calculate_fullscreen_section_size);
-					$et_window.off('et-pb-header-height-calculated', et_calculate_fullscreen_section_size);
+					$fullscreenSectionWindow.off('resize', et_calculate_fullscreen_section_size);
+					$fullscreenSectionWindow.off('et-pb-header-height-calculated', et_calculate_fullscreen_section_size);
 
-					$et_window.trigger('resize');
+					$fullscreenSectionWindow.trigger('resize');
 
-					$et_window.on('resize', et_calculate_fullscreen_section_size);
-					$et_window.on('et-pb-header-height-calculated', et_calculate_fullscreen_section_size);
+					$fullscreenSectionWindow.on('resize', et_calculate_fullscreen_section_size);
+					$fullscreenSectionWindow.on('et-pb-header-height-calculated', et_calculate_fullscreen_section_size);
 				});
 				// 100ms timeout is set to make sure that the fulls screen section size is calculated
 				// This allows the posibility that in some specific cases this may not be enought
@@ -5506,18 +5544,19 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 			};
 
 			if (!isBuilder) {
-				$et_window.on( 'resize', et_calculate_fullscreen_section_size );
-				$et_window.on( 'et-pb-header-height-calculated', et_calculate_fullscreen_section_size );
+				$fullscreenSectionWindow.on('resize', et_calculate_fullscreen_section_size);
+				$fullscreenSectionWindow.on('et-pb-header-height-calculated', et_calculate_fullscreen_section_size);
 			}
 
 			window.debounced_et_apply_builder_css_parallax = et_pb_debounce(et_apply_builder_css_parallax, 100);
 
 			window.et_pb_parallax_init = function($this_parallax) {
 				var $this_parent = $this_parallax.parent();
+				var topWindow = isBuilder || isBlockLayoutPreview ? window.top : window;
 
 				if ($this_parallax.hasClass('et_pb_parallax_css')) {
 					// Register faux CSS Parallax effect for builder modes with top window scroll
-					if ($('body').hasClass('et-fb') || isTB) {
+					if ($('body').hasClass('et-fb') || isTB || isBlockLayoutPreview) {
 						$.proxy(et_apply_builder_css_parallax, $this_parent)();
 						if (isTB) {
 							window.top.jQuery('#et-fb-app')
@@ -5557,6 +5596,7 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 					et_container_width_in_pixel = ( typeof et_container_css_width !== 'undefined' ) ? et_container_css_width.substr( -1, 1 ) !== '%' : '',
 					et_container_actual_width   = ( et_container_width_in_pixel ) ? $et_container.width() : ( ( $et_container.width() / 100 ) * window_width ), // $et_container.width() doesn't recognize pixel or percentage unit. It's our duty to understand what it returns and convert it properly
 					containerWidthChanged       = et_container_width !== et_container_actual_width;
+				var $dividers                   = $('.et_pb_top_inside_divider, .et_pb_bottom_inside_divider');
 
 				et_pb_resize_section_video_bg();
 				et_pb_center_video();
@@ -5658,6 +5698,13 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 				if (grid_containers.length || isBuilder) {
 					$(grid_containers).each(function () {
 						window.et_pb_set_responsive_grid($(this), '.et_pb_grid_item');
+					});
+				}
+
+				// Re-apply module divider fix
+				if (!isBuilder && $dividers.length) {
+					$dividers.each(function() {
+						etFixDividerSpacing($(this));
 					});
 				}
 			} );
@@ -5885,7 +5932,8 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 							}
 						};
 
-						jQuery.ajax({
+						// Ajax request settings
+						var ajaxSettings = {
 							url: href,
 							success: paginate,
 							error: function (page) {
@@ -5894,7 +5942,19 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 									paginate(page.responseText);
 								}
 							}
-						});
+						};
+
+						// Layout block preview is essentially blank page where its layout is passed
+						// via POST. Pass the next page's layout content by shipping it on the ajax
+						// request as POST
+						if (isBlockLayoutPreview) {
+							ajaxSettings.data = {
+								et_layout_block_layout_content: ETBlockLayoutPreview.layoutContent,
+							};
+							ajaxSettings.method = 'POST';
+						}
+
+						jQuery.ajax(ajaxSettings);
 					});
 				}
 
@@ -6353,6 +6413,34 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 		});
 	};
 
+	/**
+	 * Fix unwanted divider spacing (mostly in webkit) when svg image is repeated and the actual
+	 * svg image dimension width is in decimal
+	 *
+	 * @since 4.0.10
+	 *
+	 * @param {object} $divider jQuery object of `.et_pb_top_inside_divider` or `.et_pb_bottom_inside_divider`
+	 */
+	window.etFixDividerSpacing = function ($divider) {
+		// Clear current inline style first so builder's outputted css is retrieved
+		$divider.attr('style', '');
+
+		// Get divider variables
+		var backgroundSize = $divider.css('backgroundSize').split(' ');
+		var horizontalSize = backgroundSize[0];
+		var verticalSize   = backgroundSize[1];
+		var hasValidSizes  = 'string' === typeof horizontalSize && 'string' === typeof verticalSize;
+
+		// Is not having default value + using percentage based value
+		if (hasValidSizes && '100%' !== horizontalSize && '%' === horizontalSize.substr(-1, 1)) {
+			var dividerWidth     = parseFloat($divider.outerWidth());
+			var imageWidth       = (parseFloat(horizontalSize) / 100) * dividerWidth;
+			var backgroundSizePx = parseInt(imageWidth) + 'px ' + verticalSize;
+
+			$divider.css('backgroundSize', backgroundSizePx);
+		}
+	}
+
 	if ( window.et_pb_custom && window.et_pb_custom.is_ab_testing_active && 'yes' === window.et_pb_custom.is_cache_plugin_active ) {
 		// update the window.et_load_event_fired variable to initiate the scripts properly
 		$( window ).load( function() {
@@ -6400,8 +6488,10 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 
 	$(document).ready(function() {
 		// Hover transition are disabled for section dividers to prevent visual glitches while document is loading,
-		// we can enable them again now.
-		$('.et_pb_top_inside_divider.et-no-transition, .et_pb_bottom_inside_divider.et-no-transition').removeClass('et-no-transition');
+		// we can enable them again now. Also, execute unwanted divider spacing
+		$('.et_pb_top_inside_divider.et-no-transition, .et_pb_bottom_inside_divider.et-no-transition').removeClass('et-no-transition').each(function() {
+			etFixDividerSpacing($(this));
+		});
 
 		// Set a delay just to make sure all modules are ready before we append box shadow container.
 		// Similar approach exists on VB custom CSS output.
@@ -6863,10 +6953,12 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 			};
 		},
 		callbackHandlerDefault: function (data, $target, $source, slug) {
-			var callbackHandlerCustom = et_multi_view.getCallbackHandlerCustom(slug, data, $target);
+			if (slug) {
+				var callbackHandlerCustom = et_multi_view.getCallbackHandlerCustom(slug);
 
-			if (callbackHandlerCustom && typeof callbackHandlerCustom === 'function') {
-				return callbackHandlerCustom(data, $target, $source, slug);
+				if (callbackHandlerCustom && typeof callbackHandlerCustom === 'function') {
+					return callbackHandlerCustom(data, $target, $source, slug);
+				}
 			}
 
 			var updated = {};
@@ -6893,16 +6985,16 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 
 			return et_multi_view.isEmptyObject(updated) ? false : updated;
 		},
-		callbackHandlerCounter: function (data, $target, $source, slug) {
-			var updated = et_multi_view.callbackHandlerDefault(data, $target, $source, slug + '__faked');
+		callbackHandlerCounter: function (data, $target, $source) {
+			var updated = et_multi_view.callbackHandlerDefault(data, $target, $source);
 
 			if (updated && updated.attrs && updated.attrs.hasOwnProperty('data-width')) {
 				window.et_bar_counters_init($target);
 			}
 		},
-		callbackHandlerNumberCounter: function (data, $target, $source, slug) {
+		callbackHandlerNumberCounter: function (data, $target, $source) {
 			if ($target.hasClass('title')) {
-				return et_multi_view.callbackHandlerDefault(data, $target, $source, slug + '__faked');
+				return et_multi_view.callbackHandlerDefault(data, $target, $source);
 			}
 
 			var attrs = data.attrs || false;
@@ -6930,9 +7022,9 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 				}
 			}
 		},
-		callbackHandlerCircleCounter: function (data, $target, $source, slug) {
+		callbackHandlerCircleCounter: function (data, $target, $source) {
 			if (!$target.hasClass('et_pb_circle_counter_inner')) {
-				return et_multi_view.callbackHandlerDefault(data, $target, $source, slug + '__faked');
+				return et_multi_view.callbackHandlerDefault(data, $target, $source);
 			}
 
 			var attrs = data.attrs || false;
@@ -6959,8 +7051,8 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 				}
 			}
 		},
-		callbackHandlerSlider: function (data, $target, $source, slug) {
-			var updated = et_multi_view.callbackHandlerDefault(data, $target, $source, slug + '__faked');
+		callbackHandlerSlider: function (data, $target, $source) {
+			var updated = et_multi_view.callbackHandlerDefault(data, $target, $source);
 
 			if ($target.hasClass('et_pb_module') && updated && updated.classes) {
 				if (updated.classes.add && updated.classes.add.indexOf('et_pb_slider_no_arrows') !== -1) {
@@ -6980,8 +7072,8 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 				}
 			}
 		},
-		callbackHandlerPostSlider: function (data, $target, $source, slug) {
-			var updated = et_multi_view.callbackHandlerDefault(data, $target, $source, slug + '__faked');
+		callbackHandlerPostSlider: function (data, $target, $source) {
+			var updated = et_multi_view.callbackHandlerDefault(data, $target, $source);
 
 			if ($target.hasClass('et_pb_module') && updated && updated.classes) {
 				if (updated.classes.add && updated.classes.add.indexOf('et_pb_slider_no_arrows') !== -1) {
@@ -7001,8 +7093,8 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 				}
 			}
 		},
-		callbackHandlerVideoSlider: function (data, $target, $source, slug) {
-			var updated = et_multi_view.callbackHandlerDefault(data, $target, $source, slug + '__faked');
+		callbackHandlerVideoSlider: function (data, $target, $source) {
+			var updated = et_multi_view.callbackHandlerDefault(data, $target, $source);
 
 			if ($target.hasClass('et_pb_slider') && updated && updated.classes) {
 				if (updated.classes.add && updated.classes.add.indexOf('et_pb_slider_no_arrows') !== -1) {
@@ -7044,9 +7136,9 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 				}
 			}
 		},
-		callbackHandlerSliderItem: function (data, $target, $source, slug) {
+		callbackHandlerSliderItem: function (data, $target, $source) {
 			if (!$target.hasClass('et_pb_slide_video') && !$target.is('img')) {
-				return et_multi_view.callbackHandlerDefault(data, $target, $source, slug + '__faked');
+				return et_multi_view.callbackHandlerDefault(data, $target, $source);
 			}
 
 			if ($target.hasClass('et_pb_slide_video')) {
@@ -7080,12 +7172,12 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 					};
 
 					if (isVideoNeedUpdate()) {
-						updated = et_multi_view.callbackHandlerDefault(data, $target, $source, slug + '__faked');
+						updated = et_multi_view.callbackHandlerDefault(data, $target, $source);
 					}
 				} else if ($contentNew.is('iframe') && $contentOld.is('iframe') && $contentNew.attr('src') !== $contentOld.attr('src')) {
-					updated = et_multi_view.callbackHandlerDefault(data, $target, $source, slug + '__faked');
+					updated = et_multi_view.callbackHandlerDefault(data, $target, $source);
 				} else if (($contentNew.hasClass('wp-video') && $contentOld.is('iframe')) || ($contentNew.is('iframe') && $contentOld.hasClass('wp-video'))) {
-					updated = et_multi_view.callbackHandlerDefault(data, $target, $source, slug + '__faked');
+					updated = et_multi_view.callbackHandlerDefault(data, $target, $source);
 				}
 
 				if (updated && updated.content) {
@@ -7111,7 +7203,7 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 					}
 				}
 			} else if ($target.is('img')) {
-				var updated = et_multi_view.callbackHandlerDefault(data, $target, $source, slug + '__faked');
+				var updated = et_multi_view.callbackHandlerDefault(data, $target, $source);
 
 				if (updated && updated.attrs && updated.attrs.src) {
 					var $slider = $target.closest('.et_pb_module');
@@ -7127,9 +7219,9 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 				}
 			}
 		},
-		callbackHandlerVideo: function (data, $target, $source, slug) {
+		callbackHandlerVideo: function (data, $target, $source) {
 			if ($target.hasClass('et_pb_video_overlay')) {
-				return et_multi_view.callbackHandlerDefault(data, $target, $source, slug + '__faked');
+				return et_multi_view.callbackHandlerDefault(data, $target, $source);
 			}
 
 			var updated = false;
@@ -7163,12 +7255,12 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 				};
 
 				if (isVideoNeedUpdate()) {
-					updated = et_multi_view.callbackHandlerDefault(data, $target, $source, slug + '__faked');
+					updated = et_multi_view.callbackHandlerDefault(data, $target, $source);
 				}
 			} else if ($contentNew.is('iframe') && $contentOld.is('iframe') && $contentNew.attr('src') !== $contentOld.attr('src')) {
-				updated = et_multi_view.callbackHandlerDefault(data, $target, $source, slug + '__faked');
+				updated = et_multi_view.callbackHandlerDefault(data, $target, $source);
 			} else if (($contentNew.is('video') && $contentOld.is('iframe')) || ($contentNew.is('iframe') && $contentOld.is('video'))) {
-				updated = et_multi_view.callbackHandlerDefault(data, $target, $source, slug + '__faked');
+				updated = et_multi_view.callbackHandlerDefault(data, $target, $source);
 			}
 
 			if (updated && updated.content) {
@@ -7179,16 +7271,17 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 
 			return updated;
 		},
-		callbackHandlerBlog: function (data, $target, $source, slug) {
-			var updated = et_multi_view.callbackHandlerDefault(data, $target, $source, slug + '__faked');
+		callbackHandlerBlog: function (data, $target, $source) {
+			var updated = et_multi_view.callbackHandlerDefault(data, $target, $source);
+			var classesAdded = et_multi_view.getObjectValue(updated, 'classes.add');
 
-			if (updated && updated.classes && updated.classes.add && updated.classes.add.indexOf('et_pb_blog_show_content') !== -1) {
+			if (classesAdded && classesAdded.indexOf('et_pb_blog_show_content') !== -1) {
 				et_reinit_waypoint_modules();
 			}
 		},
-		callbackHandlerTestimonial: function (data, $target, $source, slug) {
+		callbackHandlerTestimonial: function (data, $target, $source) {
 			if (!$source.hasClass('et_pb_testimonial_description_inner')) {
-				return et_multi_view.callbackHandlerDefault(data, $target, $source, slug + '__faked');
+				return et_multi_view.callbackHandlerDefault(data, $target, $source);
 			}
 
 			$.each($target.find('.et_pb_testimonial_author').prevAll(), function () {
@@ -7201,17 +7294,17 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 				$source.addClass('et_multi_view_swapped');
 			}
 		},
-		callbackHandlerWooCommerceBreadcrumb: function(data, $target, $source, slug) {
+		callbackHandlerWooCommerceBreadcrumb: function(data, $target, $source) {
 			if (data.content) {
-				return et_multi_view.callbackHandlerDefault(data, $target, $source, slug + '__faked');
+				return et_multi_view.callbackHandlerDefault(data, $target, $source);
 			}
 			if (data.attrs && data.attrs.hasOwnProperty('href')) {
 				var hrefValue = data.attrs['href'];
 				return et_multi_view.updateAttrs({href: hrefValue}, $target, $source);
 			}
 		},
-		callbackHandlerWooCommerceTabs: function(data, $target, $source, slug) {
-			var updated = et_multi_view.callbackHandlerDefault(data, $target, $source, slug + '__faked');
+		callbackHandlerWooCommerceTabs: function(data, $target, $source) {
+			var updated = et_multi_view.callbackHandlerDefault(data, $target, $source);
 
 			if (updated && updated.attrs && updated.attrs.hasOwnProperty('data-include_tabs')) {
 				// Show only the enabled Tabs i.e. Hide all tabs and show as required.
@@ -7313,6 +7406,11 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 						// Do nothing, use styles data contexts and updateStyles method instead.
 						break;
 
+					case 'srcset':
+					case 'sizes':
+						// Do nothing, will handle these attributes along with src attribute.
+						break;
+
 					default:
 						if ($target.attr(key) !== value) {
 							$target.attr(key, value);
@@ -7324,8 +7422,19 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 							if ('src' === key) {
 								if (value) {
 									$target.removeClass('et_multi_view_hidden_image');
+
+									if (attrs.srcset && attrs.sizes) {
+										$target.attr('srcset', attrs.srcset);
+										$target.attr('sizes', attrs.sizes);
+									} else {
+										$target.removeAttr('srcset');
+										$target.removeAttr('sizes');
+									}
 								} else {
 									$target.addClass('et_multi_view_hidden_image');
+
+									$target.removeAttr('srcset');
+									$target.removeAttr('sizes');
 								}
 							}
 
@@ -7451,6 +7560,20 @@ var isBuilder = 'object' === typeof window.ET_Builder;
 			}
 
 			return isEmpty;
+		},
+		getObjectValue: function (object, path, defaultValue) {
+			try {
+				var value = $.extend({}, object);
+				var paths = path.split('.');
+
+				for (i = 0; i < paths.length; ++i) {
+					value = value[paths[i]];
+				}
+
+				return value;
+			} catch (error) {
+				return defaultValue;
+			}
 		},
 		tryParseJSON: function (string) {
 			try {

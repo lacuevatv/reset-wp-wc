@@ -906,7 +906,7 @@ class ET_Builder_Element {
 
 		$is_preview       = is_preview() || is_et_pb_preview();
 		$forced_in_footer = $post_id && et_builder_setting_is_on( 'et_pb_css_in_footer', $post_id );
-		$forced_inline    = ! $post_id || $is_preview || $forced_in_footer || et_builder_setting_is_off( 'et_pb_static_css_file', $post_id ) || et_core_is_safe_mode_active();
+		$forced_inline    = ! $post_id || $is_preview || $forced_in_footer || et_builder_setting_is_off( 'et_pb_static_css_file', $post_id ) || et_core_is_safe_mode_active() || ET_GB_Block_Layout::is_layout_block_preview();
 		$unified_styles   = ! $forced_inline && ! $forced_in_footer;
 
 		$resource_owner = $unified_styles ? 'core' : 'builder';
@@ -3376,23 +3376,27 @@ class ET_Builder_Element {
 				) );
 
 				// c. Unordered List.
-				$ul_element_selector    = isset( $block_elements_css['ul'] ) ? $block_elements_css['ul'] : "{$block_elements_selector} ul";
-				$ul_li_element_selector = isset( $block_elements_css['ul_li'] ) ? $block_elements_css['ul_li'] : "{$ul_element_selector} li";
+				$ul_element_selector     = et_()->array_get( $block_elements_css, 'ul', "{$block_elements_selector} ul" );
+				$ul_li_element_selector  = et_()->array_get( $block_elements_css, 'ul_li', "{$ul_element_selector} li" );
+				$ul_item_indent_selector = et_()->array_get( $block_elements_css, 'ul_item_indent', $ul_element_selector );
 				$advanced_font_options["{$option_name}_ul"] = array_merge( $block_elements_default_settings, array(
 					'label'       => esc_html__( 'Unordered List', 'et_builder' ),
 					'css'         => array(
-						'main' => $ul_li_element_selector,
+						'main'        => $ul_li_element_selector,
+						'item_indent' => $ul_item_indent_selector,
 					),
 					'sub_toggle'  => 'ul',
 				) );
 
 				// d. Ordered List.
-				$ol_element_selector    = isset( $block_elements_css['ol'] ) ? $block_elements_css['ol'] : "{$block_elements_selector} ol";
-				$ol_li_element_selector = isset( $block_elements_css['ol_li'] ) ? $block_elements_css['ol_li'] : "{$ol_element_selector} li";
+				$ol_element_selector     = et_()->array_get( $block_elements_css, 'ol', "{$block_elements_selector} ol" );
+				$ol_li_element_selector  = et_()->array_get( $block_elements_css, 'ol_li', "{$ol_element_selector} li" );
+				$ol_item_indent_selector = et_()->array_get( $block_elements_css, 'ol_item_indent', $ol_element_selector );
 				$advanced_font_options["{$option_name}_ol"] = array_merge( $block_elements_default_settings, array(
 					'label'       => esc_html__( 'Ordered List', 'et_builder' ),
 					'css'         => array(
-						'main' => $ol_li_element_selector,
+						'main'        => $ol_li_element_selector,
+						'item_indent' => $ol_item_indent_selector,
 					),
 					'sub_toggle'  => 'ol',
 				) );
@@ -11048,7 +11052,9 @@ class ET_Builder_Element {
 						'phone'   => $is_list_indent_responsive ? esc_html( et_pb_responsive_options()->get_any_value( $this->props, "{$list_indent_name}_phone" ) ) : '',
 					);
 
-					et_pb_responsive_options()->generate_responsive_css( $list_indent_values, $list_selector, 'padding-left', $function_name, ' !important;' );
+					$list_item_indent_selector = et_()->array_get( $option_settings, 'css.item_indent', $list_selector );
+
+					et_pb_responsive_options()->generate_responsive_css( $list_indent_values, $list_item_indent_selector, 'padding-left', $function_name, ' !important;' );
 				}
 
 				// Additional quote option slugs.
@@ -11718,7 +11724,19 @@ class ET_Builder_Element {
 					'et_pb_fullwidth_menu',
 				);
 
-				$overflow = ! in_array( $function_name, $no_overflow_module );
+				$overflow   = ! in_array( $function_name, $no_overflow_module );
+				$overflow_x = ! in_array( self::$_->array_get( $this->props, 'overflow-x' ), array( '', 'hidden' ) );
+				$overflow_y = ! in_array( self::$_->array_get( $this->props, 'overflow-y' ), array( '', 'hidden' ) );
+
+				// Remove "overflow: hidden" if both overflow-x and overflow-y are not empty or not set to "hidden"
+				// Add "overflow-y: hidden" if overflow-x is not empty or not set to "hidden" (or vice versa)
+				if ( $overflow_x && $overflow_y ) {
+					$overflow = false;
+				} else if ( $overflow_x ) {
+					$overflow = 'overflow-y';
+				} else if ( $overflow_y ) {
+					$overflow = 'overflow-x';
+				}
 
 				// Render border radii for all devices.
 				foreach( et_pb_responsive_options()->get_modes() as $device ) {
@@ -17069,10 +17087,13 @@ class ET_Builder_Element {
 	public static function get_cache_filename( $post_type = false ) {
 
 		global $post, $et_builder_post_type;
+		$ajax_use_cache = apply_filters( 'et_builder_ajax_use_cache', false );
 
 		if ( false === $post_type ) {
 			if ( is_a( $post, 'WP_POST' ) ) {
 				$post_type = $post->post_type;
+			} else if ( $ajax_use_cache ) {
+				$post_type = et_()->array_get( $_POST, 'et_post_type', 'page' );
 			} else if ( is_admin() && ! wp_doing_ajax() ) {
 				$et_builder_post_type = $post_type = 'page';
 			}
@@ -17083,6 +17104,7 @@ class ET_Builder_Element {
 		}
 
 		$post_type = apply_filters( 'et_builder_cache_post_type', $post_type, 'modules' );
+		$post_type = trim( sanitize_file_name( $post_type ), '.' );
 
 		// Per language Cache due to fields data being localized.
 		// Use user custom locale only if admin or VB/BFB
@@ -17095,13 +17117,15 @@ class ET_Builder_Element {
 
 		if ( $exists ) {
 			return $files[0];
+		} elseif ( $ajax_use_cache ) {
+			// Whitelisted AJAX requests aren't allowed to generate cache, only to use it.
+			return false;
 		}
 
 		wp_mkdir_p( $cache );
 
 		// Create uniq filename
 		$uniq      = str_replace( '.', '', (string) microtime( true ) );
-		$post_type = trim( sanitize_file_name( $post_type ), '.' );
 		$file      = sprintf( '%s/%s-%s-%s.data', $cache, $prefix, $post_type, $uniq );
 
 		return wp_is_writable( dirname( $file ) ) ? $file : false;
